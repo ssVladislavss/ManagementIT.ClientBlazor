@@ -1,0 +1,193 @@
+﻿@page "/Admin/Application/Priority"
+
+@inject DataManager dm
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@*@attribute [Authorize(Roles = "RootAdmin")]*@
+@if (result == null)
+{
+    <MudSkeleton />
+    <MudSkeleton Animation="Animation.False" />
+    <MudSkeleton Animation="Animation.Wave" />
+}
+else if (result.Type == NotificationType.Warn)
+{
+    <MudAlert Severity="Severity.Warning">В данный момент невозможно отобразить страницу, сервер не отвечает</MudAlert>
+}
+else if (result.Errors.Any(x => x == TypeOfErrors.NoContent))
+{
+    <MudAlert Severity="Severity.Info">
+        В вашей организации не зарегистрировано ниодного здания
+        <MudButton Color="Color.Success"
+                   Variant="Variant.Filled"
+                   OnClick="() => Create()">Добавить</MudButton>
+    </MudAlert>
+}
+else
+{
+    <MudTable Items="@priorities"
+              Dense="@dense" Hover="@hover" Bordered="@bordered" Striped="@striped"
+              Filter="(ApplicationPriorityViewModel entity) => FilterFunc(entity, _searchString)">
+        <ToolBarContent>
+            <MudFab OnClick="() => Create()" Color="Color.Success" Icon="@Icons.Material.Filled.Add" Size="Size.Small" IconSize="Size.Small" Class="ma-2" />
+            <MudFab OnClick="UpdateCache" Color="Color.Info" Icon="@Icons.Material.Filled.Update" Label="Обновить" Size="Size.Small" IconSize="Size.Small" Class="ma-2" />
+            <MudSpacer />
+            <MudTextField @bind-Value="_searchString" Placeholder="Поиск" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"></MudTextField>
+        </ToolBarContent>
+        <HeaderContent>
+            <MudTh><MudTableSortLabel SortBy="new Func<ApplicationPriorityViewModel, object>(x=>x.Id)">Номер Приоритета</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<ApplicationPriorityViewModel, object>(x=>x.Name)">Название</MudTableSortLabel></MudTh>
+            <MudTh>По умолчанию</MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Номер Приоритета">@context.Id</MudTd>
+            <MudTd DataLabel="Название">@context.Name</MudTd>
+            
+            <MudTd>
+                @if (context.IsDefault)
+                 {
+                    <MudChip Text="blue" Variant="Variant.Outlined" Color="Color.Info">По умолчанию</MudChip>
+                 }
+            </MudTd>
+
+            <MudTd>
+                <MudButtonGroup OverrideStyles="false">
+                    <MudButton Color="Color.Primary"
+                               Variant="Variant.Outlined"
+                               StartIcon="@Icons.Material.Filled.Settings"
+                               OnClick="() => Update(context)">Редактировать</MudButton>
+                    <MudButton Color="Color.Secondary" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Delete" OnClick="() => Delete(context)">Удалить</MudButton>
+                </MudButtonGroup>
+            </MudTd>
+        </RowTemplate>
+        <PagerContent>
+            <MudTablePager RowsPerPageString="Заявок на странице" InfoFormat="{first_item}-{last_item} из {all_items}" />
+        </PagerContent>
+    </MudTable>
+}
+
+@code {
+    private bool dense = false;
+    private bool hover = true;
+    private bool striped = false;
+    private bool bordered = false;
+    private string _searchString = "";
+
+    ActionResult<ApplicationPriorityViewModel> result;
+    List<ApplicationPriorityViewModel> priorities;
+
+    private async Task UpdateCache()
+    {
+        var priorityResult = await dm.ApplicationPrioritysManager.GetListViewModelsAsync();
+        result = new ActionResult<ApplicationPriorityViewModel>(priorityResult.Type, priorityResult.Text, priorityResult.Title, priorityResult.Errors);
+        if (result.Type == NotificationType.Warn) { }
+        else if (result.Type != NotificationType.Success) Snackbar.Add(result.Text, Severity.Error);
+        else
+        {
+            priorities = priorityResult.Data;
+            priorities.Sort();
+            Snackbar.Add("Данные успешно обновлены", Severity.Success);
+        }
+    }
+
+    private async Task GetViewModels(bool updateCache = true)
+    {
+        var actionResult = await dm.ApplicationPrioritysManager.GetListViewModelsAsync(updateCache);
+        result = new ActionResult<ApplicationPriorityViewModel>(actionResult.Type, actionResult.Text, actionResult.Title, actionResult.Errors);
+        if (result.Type == NotificationType.Success)
+        {
+            priorities = actionResult.Data;
+            priorities.Sort();
+        }
+        else priorities = new List<ApplicationPriorityViewModel>();
+    }
+
+    private async Task<DialogResult> ShowDialog(ApplicationPriorityViewModel entity, string message)
+    {
+        var options = new DialogOptions() { MaxWidth = MaxWidth.Small, Position = DialogPosition.Center };
+        var parameters = new DialogParameters { ["Model"] = entity };
+        var dialog = DialogService.Show<AppliactionPriorityAdminDialogComponent>(message, parameters, options);
+        return await dialog.Result;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await GetViewModels(false);
+        await base.OnInitializedAsync();
+    }
+
+    private async Task Create(ApplicationPriorityViewModel entity = null)
+    {
+        var model = entity == null ? new ApplicationPriorityViewModel() : entity;
+        var resultDialog = await ShowDialog(model, "Создание");
+
+        if (!resultDialog.Cancelled)
+        {
+            result = await dm.ApplicationPrioritysManager.CreateAsync((ApplicationPriorityViewModel)resultDialog.Data);
+            if (result.Type == NotificationType.Warn) { }
+            else if (result.Type != NotificationType.Success)
+            {
+                Snackbar.Add(result.Text, Severity.Error);
+                await Create((ApplicationPriorityViewModel)resultDialog.Data);
+            }
+            else
+            {
+                await GetViewModels();
+                Snackbar.Add("Приоритет успешно добавлен", Severity.Success);
+            }
+        }
+    }
+
+    private async Task Update(ApplicationPriorityViewModel entity)
+    {
+        var model = new ApplicationPriorityViewModel(entity.Id, entity.Name, entity.IsDefault);
+        var resultDialog = await ShowDialog(model, "Изменение");
+
+        if (!resultDialog.Cancelled)
+        {
+            result = await dm.ApplicationPrioritysManager.UpdateAsync((ApplicationPriorityViewModel)resultDialog.Data);
+            if (result.Type == NotificationType.Warn) { }
+            else if (result.Type != NotificationType.Success)
+            {
+                Snackbar.Add(result.Text, Severity.Error);
+                await Update((ApplicationPriorityViewModel)resultDialog.Data);
+            }
+            else
+            {
+                await GetViewModels();
+                Snackbar.Add("Параметры успешно применены", Severity.Success);
+            }
+        }
+    }
+
+    private async Task Delete(ApplicationPriorityViewModel entity)
+    {
+        var options = new DialogOptions() { MaxWidth = MaxWidth.ExtraSmall, Position = DialogPosition.TopCenter };
+        var dialog = DialogService.Show<ConfirmDeleteDiaologAdminComponent>("Подтвердите действие", options);
+        var resultDialog = await dialog.Result;
+
+        if (!resultDialog.Cancelled)
+        {
+            result = await dm.ApplicationPrioritysManager.DeleteAsync(entity.Id);
+            if (result.Type == NotificationType.Warn) { }
+            else if (result.Type != NotificationType.Success) Snackbar.Add(result.Text, Severity.Error);
+            else
+            {
+                priorities.Remove(entity);
+                if(priorities.Any()) priorities.Sort();
+                Snackbar.Add("Приоритет успешно удалён", Severity.Success);
+            }
+        }
+    }
+
+    private bool FilterFunc(ApplicationPriorityViewModel entity, string searchString)
+    {
+        if (string.IsNullOrWhiteSpace(searchString))
+            return true;
+        if (entity.Name.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        return false;
+    }
+}
+

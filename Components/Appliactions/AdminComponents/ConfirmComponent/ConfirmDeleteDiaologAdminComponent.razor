@@ -1,0 +1,17 @@
+﻿<MudDialog>
+    <DialogContent>
+        Подтвердите действие
+    </DialogContent>
+    <DialogActions>
+        <MudIconButton Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" OnClick="Submit" />
+        <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Error" OnClick="Cancel" />
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+
+    void Submit() => MudDialog.Close(DialogResult.Ok(true));
+    void Cancel() => MudDialog.Cancel();
+}
+

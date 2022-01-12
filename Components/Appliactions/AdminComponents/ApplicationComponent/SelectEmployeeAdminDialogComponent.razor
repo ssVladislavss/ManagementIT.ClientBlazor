@@ -1,0 +1,68 @@
+﻿<MudDialog>
+    <DialogContent>
+        <MudForm Model="@Model" @ref="form">
+            <MudSelect @bind-Value="Model.Employee"
+                       Required="true"
+                       Label="Сотрудник"
+                       For="() => Model.Employee"
+                       Validation="Model.Validator.IsValid">
+                @foreach (var employee in Model.SelectEmployee)
+                {
+                    <MudSelectItem Value="@employee">
+                        @employee.Surname @employee.Name @employee.Patronymic
+                    </MudSelectItem>
+                }
+            </MudSelect>
+            @if (Model.IsIniciator)
+            {
+                <MudGrid>
+                    <MudItem xs="20" sm="10" md="8">
+                        <MudTextField T="string" Text="@SetContact()" HelperText="@HelperText" Adornment="Adornment.End"
+                                  AdornmentColor="Color.Success" AdornmentIcon="@ShowIcon()" ReadOnly="true" />
+                    </MudItem>
+                </MudGrid>
+            }
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Info" OnClick="Confirm">Сохранить</MudButton>
+        <MudButton OnClick="Cancel">Отмена</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+
+    [Parameter] public UpdateEmployeeOrApplicationViewModel Model { get; set; }
+
+    MudForm form;
+    private string HelperText = "Контакт исполнителя";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Model.IsIniciator) HelperText = "Контакт инициатора";
+        await base.OnInitializedAsync();
+    }
+    private string GetHelperText() => Model.IsIniciator ? "Контакт инициатора" : "Контакт исполнителя";
+
+    private string ShowIcon()
+    {
+        if (!string.IsNullOrEmpty(Model.Contact)) return Icons.Material.Filled.CheckCircle;
+        return null;
+    }
+
+    private string SetContact()
+    {
+        return Model.Contact = Model.Employee?.WorkTelephone != null
+                                                 ? Model.Employee?.WorkTelephone
+                                                 : Model.Employee?.MobileTelephone;
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void Confirm()
+    {
+        form.Validate();
+        if (form.IsValid) MudDialog.Close(DialogResult.Ok(Model));
+    }
+}

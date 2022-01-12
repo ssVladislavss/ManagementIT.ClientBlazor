@@ -1,0 +1,38 @@
+﻿
+<MudDialog>
+    <DialogContent>
+        <MudForm Model="@Model" @ref="form">
+            <MudSelect @bind-Value="Model.State"
+                           Required="true"
+                           Label="Состояние"
+                           For="() => Model.State"
+                           Validation="Model.Validator.IsValid">
+                    @foreach (var state in Model.SelectState)
+                    {
+                        <MudSelectItem Value="@state">
+                            @state.Name
+                        </MudSelectItem>
+                    }
+                </MudSelect>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Info" OnClick="Confirm">Сохранить</MudButton>
+        <MudButton OnClick="Cancel">Отмена</MudButton>
+    </DialogActions>
+</MudDialog>
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+
+    [Parameter] public SelectedStateViewModel Model { get; set; }
+
+    MudForm form;
+
+    private void Cancel() => MudDialog.Cancel();
+    
+    private void Confirm()
+    {
+        form.Validate();
+        if (form.IsValid) MudDialog.Close(DialogResult.Ok(Model));
+    }
+}

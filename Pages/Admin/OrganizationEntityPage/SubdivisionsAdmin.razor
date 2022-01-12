@@ -1,0 +1,178 @@
+﻿@page "/Admin/Subdivisions"
+
+@inject DataManager dm
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@*@attribute [Authorize(Roles = "RootAdmin")]*@
+
+
+@if (result == null)
+{
+    <MudSkeleton />
+    <MudSkeleton Animation="Animation.False" />
+    <MudSkeleton Animation="Animation.Wave" />
+}
+else if (result.Type == NotificationType.Warn)
+{
+    <MudAlert Severity="Severity.Warning">
+        На данный момент невозможно отобразить страницу, сервер не отвечает
+    </MudAlert>
+}
+else if (result.Errors.Any(x => x == TypeOfErrors.NoContent || x == TypeOfErrors.NotFound))
+{
+    <MudAlert Severity="Severity.Info">
+        В вашей организации не зарегистрировано ниодного подразделения
+        <MudButton Color="Color.Success" Variant="Variant.Filled" OnClick="() => Create(new SubdivisionViewModel())">Добавить</MudButton>
+    </MudAlert>
+}
+else
+{
+    <MudTable Items="@subdivisions"
+              Dense="@dense" Hover="@hover" Bordered="@bordered" Striped="@striped"
+              Filter="(SubdivisionViewModel subdivision) => FilterFunc(subdivision, _searchString)">
+        <ToolBarContent>
+            <MudFab OnClick="() => Create(new SubdivisionViewModel())" Color="Color.Success" Icon="@Icons.Material.Filled.Add" Size="Size.Small" IconSize="Size.Small" Class="ma-2" />
+            <MudFab OnClick="UpdateCache" Color="Color.Info" Icon="@Icons.Material.Filled.Update" Label="Обновить" Size="Size.Small" IconSize="Size.Small" Class="ma-2" />
+            <MudSpacer />
+            <MudTextField @bind-Value="_searchString" Placeholder="Поиск" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"></MudTextField>
+        </ToolBarContent>
+        <HeaderContent>
+            <MudTh><MudTableSortLabel SortBy="new Func<SubdivisionViewModel, object>(x=>x.Id)">Номер</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<SubdivisionViewModel, object>(x=>x.Name)">Название</MudTableSortLabel></MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Номер">@context.Id</MudTd>
+            <MudTd DataLabel="Название">@context.Name</MudTd>
+            <MudTd>
+                <MudButtonGroup OverrideStyles="false">
+                    <MudButton Color="Color.Primary" StartIcon="@Icons.Material.Filled.Settings" Variant="Variant.Outlined" OnClick="() => Update(context)">Редактировать</MudButton>
+                    <MudButton Color="Color.Error" StartIcon="@Icons.Material.Filled.Delete" Variant="Variant.Outlined" OnClick="() => Delete(context)">Удалить</MudButton>
+                </MudButtonGroup>
+            </MudTd>
+        </RowTemplate>
+        <PagerContent>
+            <MudTablePager />
+        </PagerContent>
+    </MudTable>
+}
+@code {
+    private bool dense = false;
+    private bool hover = true;
+    private bool striped = false;
+    private bool bordered = false;
+    private string _searchString = "";
+
+    ActionResult<SubdivisionViewModel> result;
+    List<SubdivisionViewModel> subdivisions;
+
+    private async Task UpdateCache()
+    {
+        var subdivisionsResult = await dm.SubdivisionsManager.GetListViewModelsAsync();
+        result = new ActionResult<SubdivisionViewModel>(subdivisionsResult.Type, subdivisionsResult.Text, subdivisionsResult.Title, subdivisionsResult.Errors);
+        if (result.Type == NotificationType.Warn) { }
+        else if (result.Type != NotificationType.Success) Snackbar.Add(result.Text, Severity.Error);
+        else
+        {
+            subdivisions = subdivisionsResult.Data;
+            subdivisions.Sort();
+            Snackbar.Add("Данные успешно обновлены", Severity.Success);
+        }
+    }
+
+    private async Task GetViewModels(bool updateCache = true)
+    {
+        var actionResult = await dm.SubdivisionsManager.GetListViewModelsAsync(updateCache);
+        result = new ActionResult<SubdivisionViewModel>(actionResult.Type, actionResult.Text, actionResult.Title, actionResult.Errors);
+
+        if (result.Type == NotificationType.Success)
+        {
+            subdivisions = actionResult.Data;
+            subdivisions.Sort();
+        }
+    }
+
+    private async Task<DialogResult> ShowDialog(SubdivisionViewModel entity, string message)
+    {
+        var parameters = new DialogParameters { ["Model"] = entity };
+        var options = new DialogOptions { Position = DialogPosition.Center, MaxWidth = MaxWidth.Small };
+        var dialog = DialogService.Show<SubdivisionAdminDialogComponent>(message, parameters, options);
+        return await dialog.Result;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await GetViewModels(false);
+        await base.OnInitializedAsync();
+    }
+
+
+    private async Task Create(SubdivisionViewModel entity)
+    {
+        var resultDialog = await ShowDialog(entity, "Создание");
+
+        if (!resultDialog.Cancelled)
+        {
+            result = await dm.SubdivisionsManager.CreateAsync((SubdivisionViewModel)resultDialog.Data);
+            if (result.Type != NotificationType.Success)
+            {
+                Snackbar.Add(result.Text, Severity.Error);
+                await Create(entity);
+            }
+            else
+            {
+                await GetViewModels();
+                Snackbar.Add("Подразделение успешно добавлено", Severity.Success);
+            }
+        }
+    }
+
+    private async Task Update(SubdivisionViewModel entity)
+    {
+        var resultDialog = await ShowDialog(entity, "Изменение");
+
+        if (!resultDialog.Cancelled)
+        {
+            result = await dm.SubdivisionsManager.UpdateAsync((SubdivisionViewModel)resultDialog.Data);
+            if (result.Type != NotificationType.Success)
+            {
+                Snackbar.Add(result.Text, Severity.Error);
+                await Update(entity);
+            }
+            else
+            {
+                await GetViewModels();
+                Snackbar.Add("Параметры упешно применены", Severity.Success);
+            }
+        }
+    }
+
+    private async Task Delete(SubdivisionViewModel entity)
+    {
+        var options = new DialogOptions { Position = DialogPosition.TopCenter, MaxWidth = MaxWidth.ExtraSmall };
+        var dialog = DialogService.Show<ConfirmDeleteDiaologAdminComponent>($"Подтвердите действие", options);
+        var resultDialog = await dialog.Result;
+
+        if (!resultDialog.Cancelled)
+        {
+            result = await dm.SubdivisionsManager.DeleteAsync(entity.Id);
+            if (result.Type != NotificationType.Success)
+                Snackbar.Add(result.Text, Severity.Error);
+            else
+            {
+                subdivisions.Remove(entity);
+                if(subdivisions.Any()) subdivisions.Sort();
+                Snackbar.Add("Подразделение успешно удалено", Severity.Success);
+            }
+        }
+    }
+
+    private bool FilterFunc(SubdivisionViewModel subdivision, string searchString)
+    {
+        if (string.IsNullOrWhiteSpace(searchString))
+            return true;
+        if (subdivision.Name.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        return false;
+    }
+}

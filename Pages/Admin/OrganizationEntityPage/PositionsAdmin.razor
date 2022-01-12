@@ -1,0 +1,192 @@
+﻿@page "/Admin/Positions"
+@using System.Diagnostics.Eventing.Reader
+
+@inject DataManager dm
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+@if (result == null)
+{
+    <MudSkeleton />
+    <MudSkeleton Animation="Animation.False" />
+    <MudSkeleton Animation="Animation.Wave" />
+}
+else if (result.Type == NotificationType.Warn)
+{
+    <MudAlert Severity="Severity.Warning">
+        В данный момент неозможно отобразить страницу, сервер не отвечает
+    </MudAlert>
+}
+else if (result.Errors.Any(x => x == TypeOfErrors.NoContent))
+{
+    <MudAlert Severity="Severity.Info">
+        В вашей организации не зарегистрировано ниодной должности
+        <MudButton Color="Color.Success" Variant="Variant.Filled" OnClick="() => Create(new PositionViewModel())">Добавить</MudButton>
+    </MudAlert>
+}
+else
+{
+    <MudTable Items="@positions"
+              Dense="@dense" Hover="@hover" Bordered="@bordered" Striped="@striped"
+              Filter="(PositionViewModel subdivision) => FilterFunc(subdivision, _searchString)">
+        <ToolBarContent>
+            <MudFab OnClick="() => Create(new PositionViewModel())" Color="Color.Success" Icon="@Icons.Material.Filled.Add" Size="Size.Small" IconSize="Size.Small" Class="ma-2" />
+            <MudFab OnClick="UpdateCache" Color="Color.Info" Icon="@Icons.Material.Filled.Update" Label="Обновить" Size="Size.Small" IconSize="Size.Small" Class="ma-2" />
+            <MudSpacer />
+            <MudTextField @bind-Value="_searchString" Placeholder="Поиск" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"></MudTextField>
+        </ToolBarContent>
+        <HeaderContent>
+            <MudTh><MudTableSortLabel SortBy="new Func<PositionViewModel, object>(x=>x.Id)">Номер</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<PositionViewModel, object>(x=>x.Name)">Название</MudTableSortLabel></MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+
+            <MudTd DataLabel="Номер">@context.Id</MudTd>
+            <MudTd DataLabel="Название">@context.Name</MudTd>
+            <MudTd>
+                <MudButtonGroup OverrideStyles="false">
+                    <MudButton Color="Color.Primary" StartIcon="@Icons.Material.Filled.Settings" Variant="Variant.Outlined" OnClick="() => Update(context)">Редактировать</MudButton>
+                    <MudButton Color="Color.Error" StartIcon="@Icons.Material.Filled.Delete" Variant="Variant.Outlined" OnClick="() => Delete(context)">Удалить</MudButton>
+                </MudButtonGroup>
+            </MudTd>
+        </RowTemplate>
+        <PagerContent>
+            <MudTablePager />
+        </PagerContent>
+    </MudTable>
+
+
+}
+
+@code {
+    private bool dense = false;
+    private bool hover = true;
+    private bool striped = false;
+    private bool bordered = false;
+    private string _searchString = "";
+
+    ActionResult<PositionViewModel> result;
+    List<PositionViewModel> positions;
+
+    private async Task<DialogResult> ShowDialog(PositionViewModel entity, string message)
+    {
+        var parameters = new DialogParameters { ["Model"] = entity };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, Position = DialogPosition.Center };
+        var dialog = DialogService.Show<PositionAdminDialogComponent>(message, parameters, options);
+        return await dialog.Result;
+    }
+
+    private async Task UpdateCache()
+    {
+        var positionResult = await dm.PositionsManager.GetListViewModelsAsync();
+        result = new ActionResult<PositionViewModel>(positionResult.Type, positionResult.Text, positionResult.Title, positionResult.Errors);
+        if (result.Type == NotificationType.Warn) { }
+        else if (result.Type != NotificationType.Success) Snackbar.Add(result.Text, Severity.Error);
+        else
+        {
+            positions = positionResult.Data;
+            positions.Sort();
+            Snackbar.Add("Данные успешно обновлены", Severity.Success);
+        }
+    }
+
+    private async Task GetViewModels(bool updateCache = true)
+    {
+        var actionResult = await dm.PositionsManager.GetListViewModelsAsync(updateCache);
+        result = new ActionResult<PositionViewModel>(actionResult.Type, actionResult.Text, actionResult.Title, actionResult.Errors);
+
+        if (result.Type == NotificationType.Success)
+        {
+            positions = actionResult.Data;
+            positions.Sort();
+        }
+        else positions = new List<PositionViewModel>();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await GetViewModels(false);
+        await base.OnInitializedAsync();
+    }
+
+    private async Task Create(PositionViewModel entity)
+    {
+        var model = new PositionViewModel(entity.Id, entity.Name);
+        var resultDialog = await ShowDialog(model, "Создание");
+
+        if (!resultDialog.Cancelled)
+        {
+            result = await dm.PositionsManager.CreateAsync((PositionViewModel)resultDialog.Data);
+
+            if (result.Type == NotificationType.Warn)
+                Snackbar.Add(result.Text, Severity.Warning);
+            else if (result.Type != NotificationType.Success)
+            {
+                Snackbar.Add(result.Text, Severity.Error);
+                await Create((PositionViewModel)resultDialog.Data);
+            }
+            else
+            {
+                await GetViewModels();
+                Snackbar.Add("Отделение успешно добавлено", Severity.Success);
+            }
+        }
+    }
+
+    private async Task Update(PositionViewModel entity)
+    {
+        var model = new PositionViewModel(entity.Id, entity.Name);
+        var resultDialog = await ShowDialog(model, "Изменение");
+
+        if (!resultDialog.Cancelled)
+        {
+            result = await dm.PositionsManager.UpdateAsync((PositionViewModel)resultDialog.Data);
+
+            if (result.Type == NotificationType.Warn)
+                Snackbar.Add(result.Text, Severity.Warning);
+            else if (result.Type != NotificationType.Success)
+            {
+                Snackbar.Add(result.Text, Severity.Error);
+                await Update((PositionViewModel)resultDialog.Data);
+            }
+            else
+            {
+                await GetViewModels();
+                Snackbar.Add("Параметры успешно применены", Severity.Success);
+            }
+        }
+    }
+
+    private async Task Delete(PositionViewModel entity)
+    {
+        var options = new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, Position = DialogPosition.TopCenter };
+        var dialog = DialogService.Show<ConfirmDeleteDiaologAdminComponent>($"Подтвердите действие", options);
+        var resultDialog = await dialog.Result;
+
+        if (!resultDialog.Cancelled)
+        {
+            result = await dm.PositionsManager.DeleteAsync(entity.Id);
+
+            if (result.Type == NotificationType.Warn)
+                Snackbar.Add(result.Text, Severity.Warning);
+            else if (result.Type != NotificationType.Success)
+                Snackbar.Add(result.Text, Severity.Error);
+            else
+            {
+                positions.Remove(entity);
+                if(positions.Any()) positions.Sort();
+                Snackbar.Add("Данные успешно удалены", Severity.Success);
+            }
+        }
+    }
+
+    private bool FilterFunc(PositionViewModel building, string searchString)
+    {
+        if (string.IsNullOrWhiteSpace(searchString))
+            return true;
+        if (building.Name.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        return false;
+    }
+}

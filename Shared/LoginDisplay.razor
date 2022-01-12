@@ -1,0 +1,30 @@
+﻿@using Microsoft.AspNetCore.Http
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Authentication.Cookies
+@inject IHttpContextAccessor httpContextAccessor
+@*<AuthorizeView>
+    <Authorized>
+
+        <MudLink Underline="Underline.None" Href="/account/logout">Выйти</MudLink>
+        <div class="row">
+            <div class="col-lg-8" style="margin-left: 10px;">
+                <MudBadge Icon="@Icons.Material.Filled.Lock" Color="Color.Error" Overlap="true" Bordered="true" Class="mx-6 my-4">
+                    <MudButton Color="Color.Error" Variant="Variant.Filled" DisableElevation="true">@context.User.Identity.Name</MudButton>
+                </MudBadge>
+            </div>
+            <div class="col-lg-4" style="margin-top: 10px; margin-right: 10px;">
+                <MudButton Variant="Variant.Filled">Default</MudButton>
+            </div>
+        </div>
+
+
+        <a href="logout">Привет, @context.User.Identity.Name!</a>
+        <form method="get" action="/account/logout">
+            <button type="submit" class="nav-link btn btn-link">Log out</button>
+        </form>
+    </Authorized>
+    <NotAuthorized>
+        <a href="Identity/Account/Register">Register</a>
+        <a href="Identity/Account/Login">Log in</a>
+    </NotAuthorized>
+</AuthorizeView>*@

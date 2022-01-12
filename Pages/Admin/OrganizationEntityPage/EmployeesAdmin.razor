@@ -1,0 +1,187 @@
+﻿@page "/Admin/Employees"
+@using System.Diagnostics
+
+@inject DataManager dm
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@*@attribute [Authorize(Roles = "RootAdmin")]*@
+@if (result == null)
+{
+    <MudSkeleton />
+    <MudSkeleton Animation="Animation.False" />
+    <MudSkeleton Animation="Animation.Wave" />
+}
+else if (result.Type == NotificationType.Warn)
+{
+    <MudAlert Severity="Severity.Warning">
+        В данный момент невозможно отобразить страницу, сервер не отвечает
+    </MudAlert>
+}
+else if (result.Errors.Any(x => x == TypeOfErrors.NoContent))
+{
+    <div>
+        <MudAlert Severity="Severity.Info">
+            В вашей организации нет сотрудников
+            <MudButton Color="Color.Success" Variant="Variant.Filled" OnClick="() => Create()">Добавить</MudButton>
+        </MudAlert>
+    </div>
+}
+else
+{
+    <MudTable Items="@employees"
+          Dense="@dense" Hover="@hover" Bordered="@bordered" Striped="@striped"
+          Filter="(EmployeeViewModel room) => FilterFunc(room, _searchString)">
+        <ToolBarContent>
+            <MudFab OnClick="() => Create()" Color="Color.Success" Icon="@Icons.Material.Filled.Add" Size="Size.Small" IconSize="Size.Small" Class="ma-2" />
+            <MudFab OnClick="UpdateCache" Color="Color.Info" Icon="@Icons.Material.Filled.Update" Label="Обновить" Size="Size.Small" IconSize="Size.Small" Class="ma-2" />
+            <MudSpacer />
+            <MudTextField @bind-Value="_searchString" Placeholder="Поиск" Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"></MudTextField>
+        </ToolBarContent>
+        <HeaderContent>
+            <MudTh><MudTableSortLabel SortBy="new Func<EmployeeViewModel, object>(x=>x.Id)">Номер сотрудника</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<EmployeeViewModel, object>(x=>x.Surname)">ФИО</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<EmployeeViewModel, object>(x=>x.WorkTelephone)">Рабочий телефон</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<EmployeeViewModel, object>(x=>x.Mail)">Почта</MudTableSortLabel></MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Номер сотрудника">@context.Id</MudTd>
+            <MudTd DataLabel="ФИО">@context.Surname @context.Name[0]. @context.Patronymic[0].</MudTd>
+            <MudTd DataLabel="Рабочий телефон">@context.WorkTelephone</MudTd>
+            <MudTd DataLabel="Почта">@context.Mail</MudTd>
+            <MudTd>
+                <MudButtonGroup OverrideStyles="false">
+                    <MudButton Color="Color.Primary"
+                           Variant="Variant.Outlined"
+                           StartIcon="@Icons.Material.Filled.Settings">
+                        <a href="Admin/EmployeeDetails/@context.Id">Подробнее</a>
+                    </MudButton>
+
+                    <MudButton Color="Color.Secondary"
+                           Variant="Variant.Outlined"
+                           OnClick="() => Delete(context)"
+                           StartIcon="@Icons.Material.Filled.Delete">
+                        Удалить
+                    </MudButton>
+                </MudButtonGroup>
+            </MudTd>
+        </RowTemplate>
+        <PagerContent>
+            <MudTablePager />
+        </PagerContent>
+    </MudTable>
+}
+@code {
+    private bool dense = false;
+    private bool hover = true;
+    private bool striped = false;
+    private bool bordered = false;
+    private string _searchString = "";
+
+    ActionResult<EmployeeViewModel> result;
+    List<EmployeeViewModel> employees;
+
+    private async Task GetViewModels(bool updateCache = true)
+    {
+        var actionResult = await dm.EmployeesManager.GetListViewModelsAsync(updateCache);
+        result = new ActionResult<EmployeeViewModel>(actionResult.Type, actionResult.Text, actionResult.Title, actionResult.Errors);
+        employees = result.Type == NotificationType.Success ? actionResult.Data : new List<EmployeeViewModel>();
+        if (employees.Any()) employees.Sort();
+    }
+
+    private async Task UpdateCache()
+    {
+        var employeesResult = await dm.EmployeesManager.GetListViewModelsAsync();
+        result = new ActionResult<EmployeeViewModel>(employeesResult.Type, employeesResult.Text, employeesResult.Title, employeesResult.Errors);
+        if (result.Type == NotificationType.Warn) { }
+        else if (result.Type != NotificationType.Success) Snackbar.Add(result.Text, Severity.Error);
+        else
+        {
+            employees = employeesResult.Data;
+            employees.Sort();
+            Snackbar.Add("Данные успешно обновлены", Severity.Success);
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await GetViewModels(false);
+        await base.OnInitializedAsync();
+    }
+
+    private async Task Create(CreateOrEditEmployeeViewModel entity = null)
+    {
+        var model = entity == null ? new CreateOrEditEmployeeViewModel() : entity;
+        var actionResult = await dm.EmployeesManager.GetForCreateAsync();
+        result = new ActionResult<EmployeeViewModel>(actionResult.Type, actionResult.Text, actionResult.Title, actionResult.Errors);
+
+        if (result.Type == NotificationType.Warn) { }
+        else if (result.Type != NotificationType.Success) Snackbar.Add(result.Text, Severity.Error);
+        else
+        {
+            model.SelectDepartment = actionResult.Data.SelectDepartment;
+            model.SelectPosition = actionResult.Data.SelectPosition;
+            if(model.MobileTelephone == null) model.MobileTelephone = "+7 ";
+            if (model.WorkTelephone == null) model.WorkTelephone = "+7 ";
+            var resultDialog = await ShowDialog(model, "Создание");
+            if (!resultDialog.Cancelled)
+            {
+                result = await dm.EmployeesManager.CreateAsync((CreateOrEditEmployeeViewModel)resultDialog.Data);
+                if (result.Type == NotificationType.Warn) { }
+                else if (result.Type != NotificationType.Success)
+                {
+                    Snackbar.Add(result.Text, Severity.Error);
+                    await Create((CreateOrEditEmployeeViewModel)resultDialog.Data);
+                }
+                else
+                {
+                    await GetViewModels();
+                    Snackbar.Add("Сотрудник успешно добавлен", Severity.Success);
+                }
+            }
+        }
+    }
+
+    private async Task<DialogResult> ShowDialog(CreateOrEditEmployeeViewModel entity, string message)
+    {
+        var parameters = new DialogParameters { ["Model"] = entity };
+        var options = new DialogOptions() { MaxWidth = MaxWidth.Small, Position = DialogPosition.Center };
+        var dialog = DialogService.Show<EmployeeAdminDialogComponent>(message, parameters, options);
+        return await dialog.Result;
+    }
+
+    private async Task Delete(EmployeeViewModel entity)
+    {
+        var options = new DialogOptions() { MaxWidth = MaxWidth.ExtraSmall, Position = DialogPosition.TopCenter };
+        var dialog = DialogService.Show<ConfirmDeleteDiaologAdminComponent>($"Подтвердите действие", options);
+        var resultDialog = await dialog.Result;
+
+        if (!resultDialog.Cancelled)
+        {
+            result = await dm.EmployeesManager.DeleteAsync(entity.Id);
+            if (result.Type == NotificationType.Warn) { }
+            else if (result.Type != NotificationType.Success)
+                Snackbar.Add(result.Text, Severity.Error);
+            else
+            {
+                employees.Remove(entity);
+                if (employees.Any()) employees.Sort();
+                Snackbar.Add("Данные успешно удалены", Severity.Success);
+            }
+        }
+    }
+
+    private bool FilterFunc(EmployeeViewModel employee, string searchString)
+    {
+        if (string.IsNullOrWhiteSpace(searchString)) return true;
+        if (employee.Name.Contains(searchString, StringComparison.OrdinalIgnoreCase)) return true;
+        if (employee.Patronymic.Contains(searchString, StringComparison.OrdinalIgnoreCase)) return true;
+        if (employee.Surname.Contains(searchString, StringComparison.OrdinalIgnoreCase)) return true;
+        if ($"{employee.Name} {employee.Surname} {employee.Patronymic} ".Contains(searchString, StringComparison.OrdinalIgnoreCase)) return true;
+        if (employee.Position.Name.Contains(searchString, StringComparison.OrdinalIgnoreCase)) return true;
+        if (employee.Departament.Name.Contains(searchString, StringComparison.OrdinalIgnoreCase)) return true;
+
+        return false;
+    }
+}

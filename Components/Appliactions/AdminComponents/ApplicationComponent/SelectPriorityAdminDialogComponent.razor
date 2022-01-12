@@ -1,0 +1,38 @@
+﻿
+<MudDialog>
+    <DialogContent>
+        <MudForm Model="@Model" @ref="form">
+            <MudSelect @bind-Value="Model.Priority"
+                           Required="true"
+                           Label="Приоритет"
+                           For="() => Model.Priority"
+                           Validation="Model.Validator.IsValid">
+                    @foreach (var priority in Model.SelectPriority)
+                    {
+                        <MudSelectItem Value="@priority">
+                            @priority.Name
+                        </MudSelectItem>
+                    }
+                </MudSelect>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Info" OnClick="Confirm">Сохранить</MudButton>
+        <MudButton OnClick="Cancel">Отмена</MudButton>
+    </DialogActions>
+</MudDialog>
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+
+    [Parameter] public SelectPriorityViewModel Model { get; set; }
+
+    MudForm form;
+
+    private void Cancel() => MudDialog.Cancel();
+    
+    private void Confirm()
+    {
+        form.Validate();
+        if (form.IsValid) MudDialog.Close(DialogResult.Ok(Model));
+    }
+}

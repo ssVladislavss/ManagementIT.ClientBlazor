@@ -1,0 +1,63 @@
+﻿@if (Model.SelectedSubdivision is not null)
+{
+    <MudDialog>
+        <DialogContent>
+            <MudForm Model="@Model" @ref="form">
+
+                <MudTextField @bind-Value="Model.Name"
+                              Label="Название"
+                              MaxLength="50"
+                              Counter="50"
+                              For="(() => Model.Name)"
+                              Validation="Model.Validator.IsValid" />
+
+                <MudSelect @bind-Value="Model.Subdivision"
+                           Required="true"
+                           Label="Подразделение"
+                           For="(() => Model.Subdivision)"
+                           Validation="Model.Validator.IsValid">
+
+                    @foreach (var subdivision in Model.SelectedSubdivision)
+                        {
+                        <MudSelectItem Value="@subdivision">
+                            @subdivision.Name
+                        </MudSelectItem>
+                        }
+                </MudSelect>
+
+            </MudForm>
+        </DialogContent>
+        
+        <DialogActions>
+            <MudButton Color="Color.Info" OnClick="Confirm">Сохранить</MudButton>
+            <MudButton OnClick="Cancel">Отмена</MudButton>
+        </DialogActions>
+    </MudDialog>
+}
+else
+{
+    <a href="/Admin/Subdivisions">Нету подразделений</a>
+    <MudButton OnClick="Cancel">Хорошо</MudButton>
+}
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+
+    [Parameter] public CreateOrEditDepartmentViewModel Model { get; set; }
+
+    MudForm form;
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+
+    private void Confirm()
+    {
+        form.Validate();
+        if(form.IsValid)
+        MudDialog.Close(DialogResult.Ok(Model));
+    }
+
+
+}

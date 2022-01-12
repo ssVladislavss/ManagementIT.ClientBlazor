@@ -1,0 +1,92 @@
+﻿<MudDialog>
+    <DialogContent>
+        <MudForm Model="@Model" @ref="@form">
+            <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-6">
+                <MudTabPanel Text="Общие данные" ToolTip="Обязательны">
+
+                    <MudSelect @bind-Value="Model.Type"
+                               Label="Тип"
+                               For="(() => Model.Type)"
+                               Validation="Model.ValidationRules.IsValid">
+                        @foreach (var type in Model.SelectType)
+                        {
+                            <MudSelectItem Value="@type">
+                                @type.Name
+                            </MudSelectItem>
+                        }
+                    </MudSelect>
+
+                    <MudSelect @bind-Value="Model.Department"
+                               Label="Отделение"
+                               For="(() => Model.Department)"
+                               Validation="Model.ValidationRules.IsValid">
+                        @foreach (var departament in Model.SelectDepartment)
+                        {
+                            <MudSelectItem Value="@departament">
+                                @departament.Name
+                            </MudSelectItem>
+                        }
+                    </MudSelect>
+
+                    <MudSelect @bind-Value="Model.Room"
+                               Label="Помещение"
+                               For="(() => Model.Room)"
+                               Validation="Model.ValidationRules.IsValid">
+                        @foreach (var room in Model.SelectRoom)
+                        {
+                            <MudSelectItem Value="@room">
+                                @room.Name
+                            </MudSelectItem>
+                        }
+                    </MudSelect>
+
+                    <MudTextField T="string" Variant="Variant.Text" Lines="7"
+                                  @bind-Value="Model.Content"
+                                  Label="Текст заявки"
+                                  For="(() => Model.Content)"
+                                  Validation="Model.ValidationRules.IsValid" />
+
+                    <MudButton Style="margin-top:5px;" Color="Color.Primary" Variant="Variant.Outlined" OnClick="Confirm">Подтвердить</MudButton>
+                    <MudButton Style="margin-top:5px;" Color="Color.Primary" Variant="Variant.Outlined" OnClick="Cancel">Отмена</MudButton>
+
+                </MudTabPanel>
+                
+                <MudTabPanel Text="Дополнительные данные" ToolTip="Примечание">
+                    <MudTextField T="string" Variant="Variant.Text" Lines="7"
+                                  @bind-Value="Model.Note"
+                                  Label="Примечание к заявке"
+                                  For="(() => Model.Note)"
+                                  Validation="Model.ValidationRules.IsValid" />
+                </MudTabPanel>
+
+            </MudTabs>
+        </MudForm>
+
+    </DialogContent>
+</MudDialog>
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+
+    [Parameter] public CreateOrEditApplicationToITViewModel Model { get; set; }
+
+    MudForm form;
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Confirm()
+    {
+        await form.Validate();
+        if (form.IsValid)MudDialog.Close(DialogResult.Ok(Model));
+    }
+
+    private string SetContact()
+    {
+        return Model.Contact = Model.Employee?.WorkTelephone == null
+                                                 ? Model.Employee?.MobileTelephone
+                                                 : Model.Employee?.WorkTelephone;
+        
+    }
+
+
+}

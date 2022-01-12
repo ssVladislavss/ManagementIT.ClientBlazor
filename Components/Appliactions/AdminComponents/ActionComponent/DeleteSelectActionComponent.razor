@@ -1,0 +1,39 @@
+﻿
+
+<MudTabs Elevation="1" Rounded="true" PanelClass="pa-6">
+    <MudTabPanel Icon="@Icons.Material.Filled.CallToAction" ToolTip="По действию">
+        <MudCheckBox T="bool" @bind-Checked="@Model.IsDeletianAction" Color="Color.Info">Удалить историю с флагом (Удаление)</MudCheckBox>
+        <MudCheckBox T="bool" @bind-Checked="@Model.IsAddingArchiveAction" Color="Color.Info">Удалить историю с флагом (Добавление в архив)</MudCheckBox>
+        <MudCheckBox T="bool" @bind-Checked="@Model.IsChangeAction" Color="Color.Info">Удалить историю с флагом (Изменение)</MudCheckBox>
+        <MudCheckBox T="bool" @bind-Checked="@Model.IsChangePriorityAction" Color="Color.Info">Удалить историю с флагом (Изменение приоритета)</MudCheckBox>
+        <MudCheckBox T="bool" @bind-Checked="@Model.IsStateChangeAction" Color="Color.Info">Удалить историю с флагом (Изменение состояния)</MudCheckBox>
+        <MudCheckBox T="bool" @bind-Checked="@Model.IsCreateAction" Color="Color.Info">Удалить историю с флагом (Создание)</MudCheckBox>
+        <MudCheckBox T="bool" @bind-Checked="@Model.IsChangeEmployee" Color="Color.Info">Удалить историю с флагом (Изменение сотрудника)</MudCheckBox>
+    </MudTabPanel>
+    <MudTabPanel Icon="@Icons.Material.Filled.AccessTime" ToolTip="По дате">
+        <MudItem xs="15" sm="9">
+            <MudDateRangePicker Label="Укажите даты" @bind-DateRange="@Model.DateRange" />
+            <MudChip OnClick="ClearDateRange" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info">Сбросить дату</MudChip>
+        </MudItem>
+    </MudTabPanel>
+    <MudSpacer/>
+    <MudIconButton Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" OnClick="Confirm" />
+    <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Error" OnClick="Cancel" />
+</MudTabs>
+
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+
+    [Parameter] public DeleteSelectedActionRequest Model { get; set; }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void Confirm() => MudDialog.Close(DialogResult.Ok(Model));
+
+    private void ClearDateRange()
+    {
+        Model.DateRange = new DateRange(DateTime.Now.Date, DateTime.Now.Date);
+        Model.SetStaticDate();
+    }
+}

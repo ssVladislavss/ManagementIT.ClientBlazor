@@ -1,0 +1,242 @@
+﻿@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject DataManager dm
+
+<MudDialog>
+    <DialogContent>
+        <MudCard>
+            <MudCardHeader>
+                <CardHeaderActions>
+                    @if (string.IsNullOrEmpty(Model.EmployeeFullName))
+                    {
+                        @if (Model.OnDelete)
+                        {
+                            <MudChip Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error">Исполнитель не назначен</MudChip>
+                            <MudSpacer />
+                        }
+                        else
+                        {
+                            <MudChip OnClick="UpdateEmployee" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error">Исполнитель не назначен</MudChip>
+                            <MudSpacer />
+                        }
+                    }
+                    else
+                    {
+                        @if (Model.OnDelete)
+                        {
+                            <MudChip Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info">Исполнитель: @GetShortNameEmployee(Model.EmployeeFullName)</MudChip>
+                            <MudSpacer />
+                        }
+                        else
+                        {
+                            <MudChip OnClick="UpdateEmployee" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info">Исполнитель: @EmployeeShortName</MudChip>
+                            <MudSpacer />
+                        }
+                    }
+                    @if (string.IsNullOrEmpty(Model.IniciatorFullName))
+                    {
+                        @if (Model.OnDelete)
+                        {
+                            <MudChip Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error">Данных инициатора нет</MudChip>
+                        }
+                        else
+                        {
+                            <MudChip OnClick="SetIniciator" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error">Данных инициатора нет</MudChip>
+                        }
+                    }
+                    else
+                    {
+                        <MudChip OnClick="GetFullNameEmployee" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info">Инициатор: @IniciatorShortName</MudChip>
+                        <MudSpacer />
+                        <MudChip Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info">@Model.Contact</MudChip>
+                    }
+                </CardHeaderActions>
+
+                <CardHeaderContent>
+                    @if (Model.OnDelete)
+                    {
+                        <MudChip Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning">Заявка №@Model.Id (Архив)</MudChip>
+                    }
+                    else
+                    {
+                        <MudChip Size="Size.Small" Variant="Variant.Outlined" Color="Color.Success">Заявка №@Model.Id (Активная)</MudChip>
+                    }
+                    <MudSpacer />
+                    <MudChip OnClick="ActionByApplication" Variant="Variant.Outlined" Size="Size.Small" Color="Color.Surface">История</MudChip>
+                    <MudChip OnClick="DetailsContent" Variant="Variant.Outlined" Size="Size.Small" Color="Color.Surface">Описание</MudChip>
+                    <MudChip OnClick="DetailsNote" Variant="Variant.Outlined" Size="Size.Small" Color="Color.Surface">Примечание</MudChip>
+                </CardHeaderContent>
+
+            </MudCardHeader>
+
+            <MudCardContent>
+
+                <MudText><b>Отделение: </b>@Model.DepartamentName</MudText>
+                <MudText><b>Помещение: </b>@Model.RoomName</MudText>
+                <MudText><b>Состояние: </b>@Model.State.Name</MudText>
+                <MudText><b>Приоритет: </b>@Model.Priority.Name</MudText>
+                <MudText><b>Тип: </b>@Model.Type.Name</MudText>
+
+            </MudCardContent>
+            <MudCardActions>
+                <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Error" OnClick="Cancel" />
+            </MudCardActions>
+        </MudCard>
+
+    </DialogContent>
+</MudDialog>
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+
+    [Parameter] public ApplicationTOITViewModel Model { get; set; }
+
+    private string IniciatorShortName;
+    private string EmployeeShortName;
+    private bool IsShortName = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        EmployeeShortName = GetShortNameEmployee(Model.EmployeeFullName);
+        IniciatorShortName = GetShortNameEmployee(Model.IniciatorFullName);
+        await base.OnInitializedAsync();
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private string GetShortNameEmployee(string fullName)
+    {
+        if (string.IsNullOrEmpty(fullName)) return null;
+        var employeeName = fullName.Split(" ");
+        var surname = employeeName[0];
+        var name = employeeName[1][0];
+        var patronymic = employeeName[2][0];
+        return $"{surname} {name}. {patronymic}.";
+    }
+
+    private void GetFullNameEmployee()
+    {
+        if (IsShortName == true)
+        {
+            if (!string.IsNullOrEmpty(Model.IniciatorFullName))
+            {
+                IniciatorShortName = Model.IniciatorFullName;
+                IsShortName = false;
+            }
+        }
+        else
+        {
+            if (!string.IsNullOrEmpty(Model.IniciatorFullName))
+            {
+                var employeeName = Model.IniciatorFullName.Split(" ");
+                var surname = employeeName[0];
+                var name = employeeName[1][0];
+                var patronymic = employeeName[2][0];
+                IniciatorShortName = $"{surname} {name}. {patronymic}.";
+                IsShortName = true;
+            }
+        }
+    }
+
+    private void DetailsContent()
+    {
+        var options = new DialogOptions() { MaxWidth = MaxWidth.Small, Position = DialogPosition.Center };
+        var parameters = new DialogParameters { ["Message"] = Model.Content };
+        var dialog = DialogService.Show<DetailsMessageLogComponent>("Описание заявки", parameters, options);
+    }
+
+    private void DetailsNote()
+    {
+        if (string.IsNullOrEmpty(Model.Note)) Snackbar.Add("Примечаний к заявке нет", Severity.Info);
+        else
+        {
+            var options = new DialogOptions() { MaxWidth = MaxWidth.Small, Position = DialogPosition.Center };
+            var parameters = new DialogParameters { ["Message"] = Model.Note };
+            var dialog = DialogService.Show<DetailsMessageLogComponent>("Описание заявки", parameters, options);
+        }
+    }
+
+    private async Task SetIniciator()
+    {
+        var employees = await dm.EmployeesManager.GetListViewModelsAsync();
+        var result = new ActionResult<ApplicationTOITViewModel>(employees.Type, employees.Text, employees.Title, employees.Errors);
+        if (result.Type == NotificationType.Warn) Snackbar.Add(result.Text, Severity.Warning);
+        else if (result.Type != NotificationType.Success) Snackbar.Add(result.Text, Severity.Error);
+        else
+        {
+            var model = new UpdateEmployeeOrApplicationViewModel();
+            model.AppId = Model.Id;
+            model.SelectEmployee = employees.Data.OrderBy(x => x.Surname).ToList();
+            model.IsIniciator = true;
+
+            var options = new DialogOptions() { MaxWidth = MaxWidth.ExtraSmall, Position = DialogPosition.Center };
+            var parameters = new DialogParameters { ["Model"] = model };
+            var dialog = DialogService.Show<SelectEmployeeAdminDialogComponent>("Выберите сотрудника", parameters, options);
+            var dialogResult = await dialog.Result;
+
+            if (!dialogResult.Cancelled)
+            {
+                var request = (UpdateEmployeeOrApplicationViewModel)dialogResult.Data;
+                result = await dm.ApplicationsTOITDataManager.SetIniciator(request);
+                if (result.Type == NotificationType.Warn) Snackbar.Add(result.Text, Severity.Warning);
+                else if (result.Type != NotificationType.Success) Snackbar.Add(result.Text, Severity.Error);
+                else
+                {
+                    Model.IniciatorId = request.Employee.Id;
+                    Model.Contact = request.Contact;
+                    Model.IniciatorFullName = $"{request.Employee.Surname} {request.Employee.Name} {request.Employee.Patronymic}";
+                    IniciatorShortName = GetShortNameEmployee(Model.IniciatorFullName);
+                    Snackbar.Add("Параметры успешно применены", Severity.Success);
+                }
+            }
+        }
+    }
+
+    private async Task UpdateEmployee()
+    {
+        var employees = await dm.EmployeesManager.GetListViewModelsAsync();
+        var result = new ActionResult<ApplicationTOITViewModel>(employees.Type, employees.Text, employees.Title, employees.Errors);
+        if (result.Type == NotificationType.Warn) { }
+        else if (result.Type != NotificationType.Success) Snackbar.Add(result.Text, Severity.Error);
+        else
+        {
+            var model = new UpdateEmployeeOrApplicationViewModel();
+            if (Model.EmployeeId != 0) model.Employee = employees.Data.FirstOrDefault(x => x.Id == Model.EmployeeId);
+            model.SelectEmployee = employees.Data.OrderBy(x => x.Surname).ToList();
+            var options = new DialogOptions() { MaxWidth = MaxWidth.ExtraSmall, Position = DialogPosition.Center };
+            var parameters = new DialogParameters { ["Model"] = model };
+            var dialog = DialogService.Show<SelectEmployeeAdminDialogComponent>("Назначение сотрудника", parameters, options);
+            var dialogResult = await dialog.Result;
+            if (!dialogResult.Cancelled)
+            {
+                var request = (UpdateEmployeeOrApplicationViewModel)dialogResult.Data;
+                request.AppId = Model.Id;
+                result = await dm.ApplicationsTOITDataManager.UpdateEmployeeAsync(request);
+                if (result.Type == NotificationType.Warn) { }
+                else if (result.Type != NotificationType.Success) Snackbar.Add(result.Text, Severity.Error);
+                else
+                {
+                    Model.EmployeeId = request.Employee.Id;
+                    Model.EmployeeFullName = $"{request.Employee.Surname} {request.Employee.Name} {request.Employee.Patronymic}";
+                    EmployeeShortName = GetShortNameEmployee(Model.EmployeeFullName);
+                    Snackbar.Add("Параметры успешно применены", Severity.Success);
+                }
+            }
+        }
+    }
+
+    private async Task ActionByApplication()
+    {
+        var actions = await dm.ActionManager.GetActionByApplicationIdAsync(Model.Id);
+
+        if (actions.Type == NotificationType.Warn) Snackbar.Add(actions.Text, Severity.Warning);
+        else if (actions.Type != NotificationType.Success)
+            Snackbar.Add(actions.Text, Severity.Error);
+        else
+        {
+            var options = new DialogOptions() { MaxWidth = MaxWidth.Large, Position = DialogPosition.Center };
+            var parameters = new DialogParameters { ["Model"] = actions.Data };
+            var dialog = DialogService.Show<ListActionComponent>("История заявки", parameters, options);
+        }
+    }
+}

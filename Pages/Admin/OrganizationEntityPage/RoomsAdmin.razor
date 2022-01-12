@@ -1,0 +1,214 @@
+﻿@page "/Admin/Rooms"
+
+@inject DataManager dm
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@*@attribute [Authorize(Roles = "RootAdmin")]*@
+
+@if (result == null)
+{
+    <MudSkeleton />
+    <MudSkeleton Animation="Animation.False" />
+    <MudSkeleton Animation="Animation.Wave" />
+}
+else if (result.Type == NotificationType.Warn)
+{
+    <MudAlert Severity="Severity.Warning">В данный момент невозможно отобразить страницу, сервер не отвечает</MudAlert>
+}
+else if (result.Errors.Any(x => x == TypeOfErrors.NoContent) || !rooms.Any())
+{
+    <MudAlert Severity="Severity.Info">
+        В вашей организации не зарегистрировано ниодного помещения
+        <MudButton Color="Color.Success" Variant="Variant.Filled" OnClick="() => Create()">Создать</MudButton>
+    </MudAlert>
+}
+else
+{
+    <MudTable Items="@rooms"
+              Dense="@dense" Hover="@hover" Bordered="@bordered" Striped="@striped"
+              Filter="(RoomViewModel room) => FilterFunc(room, _searchString)">
+        <ToolBarContent>
+            <MudFab OnClick="() => Create()" Color="Color.Success" Icon="@Icons.Material.Filled.Add" Size="Size.Small" IconSize="Size.Small" Class="ma-2" />
+            <MudFab OnClick="UpdateCache" Color="Color.Info" Icon="@Icons.Material.Filled.Update" Label="Обновить" Size="Size.Small" IconSize="Size.Small" Class="ma-2" />
+            <MudSpacer />
+            <MudTextField @bind-Value="_searchString" Placeholder="Поиск" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"></MudTextField>
+        </ToolBarContent>
+        <HeaderContent>
+            <MudTh><MudTableSortLabel SortBy="new Func<RoomViewModel, object>(x=>x.Id)">Номер</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<RoomViewModel, object>(x=>x.Name)">Название</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<RoomViewModel, object>(x=>x.Floor)">Этаж</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<RoomViewModel, object>(x=>x.Building?.Name)">Здание</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<RoomViewModel, object>(x=>x.Departament?.Name)">Отделение</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<RoomViewModel, object>(x=>x.RequiredCountSocket)">Требуется розеток</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<RoomViewModel, object>(x=>x.CurrentCountSocket)">Текущие кол-во розеток</MudTableSortLabel></MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Номер">@context.Id</MudTd>
+            <MudTd DataLabel="Название">@context.Name</MudTd>
+            <MudTd DataLabel="Этаж">@context.Floor</MudTd>
+            <MudTd DataLabel="Здание">@context.Building.Name</MudTd>
+            <MudTd DataLabel="Отделение">@context.Departament.Name</MudTd>
+            <MudTd DataLabel="Требуется розеток">@context.RequiredCountSocket</MudTd>
+            <MudTd DataLabel="Текущие кол-во розеток">@context.CurrentCountSocket</MudTd>
+            <MudTd>
+                <MudButtonGroup OverrideStyles="false">
+                    <MudButton Color="Color.Primary" StartIcon="@Icons.Material.Filled.Settings" Variant="Variant.Outlined"
+                               OnClick="() => Update(new CreateOrEditRoomViewModel(context))">Редактировать</MudButton>
+                    <MudButton Color="Color.Error" StartIcon="@Icons.Material.Filled.Delete" Variant="Variant.Outlined" OnClick="() => Delete(context)">Удалить</MudButton>
+                </MudButtonGroup>
+            </MudTd>
+        </RowTemplate>
+        <PagerContent>
+            <MudTablePager />
+        </PagerContent>
+    </MudTable>
+}
+
+@code {
+    private bool dense = false;
+    private bool hover = true;
+    private bool striped = false;
+    private bool bordered = false;
+    private string _searchString = "";
+
+    ActionResult<RoomViewModel> result;
+    List<RoomViewModel> rooms;
+
+    private async Task UpdateCache()
+    {
+        var roomsResult = await dm.RoomsManager.GetListViewModelsAsync();
+        result = new ActionResult<RoomViewModel>(roomsResult.Type, roomsResult.Text, roomsResult.Title, roomsResult.Errors);
+        if (result.Type == NotificationType.Warn) { }
+        else if (result.Type != NotificationType.Success) Snackbar.Add(result.Text, Severity.Error);
+        else
+        {
+            rooms = roomsResult.Data;
+            rooms.Sort();
+            Snackbar.Add("Данные успешно обновлены", Severity.Success);
+        }
+    }
+
+    public async Task GetViewModels(bool updateCache = true)
+    {
+        var actionResult = await dm.RoomsManager.GetListViewModelsAsync(updateCache);
+        result = new ActionResult<RoomViewModel>(actionResult.Type, actionResult.Text, actionResult.Title, actionResult.Errors);
+        if (result.Type == NotificationType.Success)
+        {
+            rooms = actionResult.Data;
+            rooms.Sort();
+        }
+        else rooms = new List<RoomViewModel>();
+    }
+
+    private async Task<DialogResult> ShowDialog(CreateOrEditRoomViewModel entity, string message)
+    {
+        var parameters = new DialogParameters { ["Model"] = entity };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, Position = DialogPosition.Center };
+        var dialog = DialogService.Show<RoomAdminDialogComponent>(message, parameters, options);
+        return await dialog.Result;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await GetViewModels(false);
+        await base.OnInitializedAsync();
+    }
+
+    private async Task Create(CreateOrEditRoomViewModel entity = null)
+    {
+        var model = entity == null ? new CreateOrEditRoomViewModel() : entity;
+        var actionResult = await dm.RoomsManager.GetForCreateAsync();
+        if (actionResult.Type == NotificationType.Warn)
+            Snackbar.Add(actionResult.Text, Severity.Warning);
+        else if (actionResult.Type != NotificationType.Success)
+        {
+            Snackbar.Add(actionResult.Text, Severity.Error);
+        }
+        else
+        {
+            model.SelectBuilding = actionResult.Data.SelectBuilding;
+            model.SelectDepartment = actionResult.Data.SelectDepartment;
+
+            var resultDialog = await ShowDialog(model, "Создание");
+            if (!resultDialog.Cancelled)
+            {
+                var createResult = await dm.RoomsManager.CreateAsync((CreateOrEditRoomViewModel)resultDialog.Data);
+                result = new ActionResult<RoomViewModel>(createResult.Type, createResult.Text, actionResult.Title, createResult.Errors);
+                if (result.Type == NotificationType.Warn)
+                    Snackbar.Add(result.Text, Severity.Warning);
+                if (result.Type != NotificationType.Success)
+                {
+                    Snackbar.Add(result.Text, Severity.Error);
+                    await Create((CreateOrEditRoomViewModel)resultDialog.Data);
+                }
+                else
+                {
+                    Snackbar.Add("Данные успешно добавлены", Severity.Success);
+                    await GetViewModels();
+                }
+            }
+        }
+    }
+
+    private async Task Update(CreateOrEditRoomViewModel entity)
+    {
+        var actionResult = await dm.RoomsManager.GetForUpdateAsync(entity.Id);
+        if (actionResult.Type == NotificationType.Warn) Snackbar.Add(actionResult.Text, Severity.Warning);
+        else if (actionResult.Type != NotificationType.Success) Snackbar.Add(actionResult.Text, Severity.Error);
+        else
+        {
+            entity.SelectBuilding = actionResult.Data.SelectBuilding;
+            entity.SelectDepartment = actionResult.Data.SelectDepartment;
+
+            var resultDialog = await ShowDialog(entity, "Изменение");
+
+            if (!resultDialog.Cancelled)
+            {
+                var updateResult = await dm.RoomsManager.UpdateAsync((CreateOrEditRoomViewModel)resultDialog.Data);
+                if (updateResult.Type == NotificationType.Warn) Snackbar.Add(updateResult.Text, Severity.Warning);
+                else if (updateResult.Type != NotificationType.Success)
+                {
+                    Snackbar.Add(updateResult.Text, Severity.Error);
+                    await Update(entity);
+                }
+                else
+                {
+                    Snackbar.Add("Параметры успешно применены", Severity.Success);
+                    await GetViewModels();
+                }
+            }
+        }
+    }
+
+    private async Task Delete(RoomViewModel entity)
+    {
+        var options = new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, Position = DialogPosition.TopCenter };
+        var dialog = DialogService.Show<ConfirmDeleteDiaologAdminComponent>($"Подтвердите действие", options);
+        var resultDialog = await dialog.Result;
+
+        if (!resultDialog.Cancelled)
+        {
+            var deleteResult = await dm.RoomsManager.DeleteAsync(entity.Id);
+            if (deleteResult.Type == NotificationType.Warn) Snackbar.Add(deleteResult.Text, Severity.Warning);
+            else if (deleteResult.Type != NotificationType.Success) Snackbar.Add(deleteResult.Text, Severity.Error);
+            else
+            {
+                Snackbar.Add("Отделение успешно удалено", Severity.Success);
+                rooms.Remove(entity);
+                if (rooms.Any()) rooms.Sort();
+            }
+        }
+    }
+
+    private bool FilterFunc(RoomViewModel room, string searchString)
+    {
+        if (string.IsNullOrWhiteSpace(searchString))
+            return true;
+        if (room.Name.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        if ($"{room.Name}".Contains(searchString))
+            return true;
+        return false;
+    }
+}

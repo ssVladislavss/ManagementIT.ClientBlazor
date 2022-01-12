@@ -1,0 +1,24 @@
+﻿
+<MudDialog DisableSidePadding="true">
+    <DialogContent>
+        <MudContainer Style="max-height: 300px; overflow-y: scroll">
+
+            @*<MudText Style="white-space: pre-wrap;">@Message</MudText>*@
+
+            <MudTextField T="string" Variant="Variant.Text" Lines="15" Value="@Message" ReadOnly="true" DisableUnderLine="true"/>
+        </MudContainer>
+    </DialogContent>
+    <DialogActions>
+        <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Error" OnClick="Cancel" />
+    </DialogActions>
+</MudDialog>
+
+
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+    [Parameter] public string Message { get; set; }
+
+    private void Cancel() => MudDialog.Cancel();
+    
+}

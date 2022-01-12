@@ -1,0 +1,191 @@
+﻿@page "/Admin/Buildings"
+
+@inject DataManager dm
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+@if (result == null)
+{
+    <MudSkeleton />
+    <MudSkeleton Animation="Animation.False" />
+    <MudSkeleton Animation="Animation.Wave" />
+}
+else if (result.Type == NotificationType.Warn)
+{
+    <MudAlert Severity="Severity.Warning">В данный момент невозможно отобразить страницу, сервер не отвечает</MudAlert>
+}
+else if (result.Errors.Any(x => x == TypeOfErrors.NoContent))
+{
+    <MudAlert Severity="Severity.Info">
+        В вашей организации не зарегистрировано ниодного здания
+        <MudButton Color="Color.Success" Variant="Variant.Filled" OnClick="() => Create(new BuildingViewModel())">Добавить</MudButton>
+    </MudAlert>
+}
+else
+{
+    <MudTable Items="@buildings"
+              Dense="@dense" Hover="@hover" Bordered="@bordered" Striped="@striped"
+              Filter="(BuildingViewModel building) => FilterFunc(building, _searchString)">
+        <ToolBarContent>
+            <MudFab OnClick="() => Create(new BuildingViewModel())" Color="Color.Success" Icon="@Icons.Material.Filled.Add" Size="Size.Small" IconSize="Size.Small" Class="ma-2" />
+            <MudFab OnClick="UpdateCache" Color="Color.Info" Icon="@Icons.Material.Filled.Update" Label="Обновить" Size="Size.Small" IconSize="Size.Small" Class="ma-2" />
+                <MudSpacer />
+            <MudTextField @bind-Value="_searchString" Placeholder="Поиск" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"></MudTextField>
+        </ToolBarContent>
+        <HeaderContent>
+            <MudTh><MudTableSortLabel SortBy="new Func<BuildingViewModel, object>(x=>x.Id)">Номер</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<BuildingViewModel, object>(x=>x.Name)">Название</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<BuildingViewModel, object>(x=>x.Address)">Адрес</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<BuildingViewModel, object>(x=>x.Floor)">Количество этажей</MudTableSortLabel></MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Номер">@context.Id</MudTd>
+            <MudTd DataLabel="Название">@context.Name</MudTd>
+            <MudTd DataLabel="Адрес">@context.Address</MudTd>
+            <MudTd DataLabel="Количество этажей">@context.Floor</MudTd>
+            <MudTd>
+                <MudButtonGroup OverrideStyles="false">
+                    <MudButton Color="Color.Primary" StartIcon="@Icons.Material.Filled.Settings" Variant="Variant.Outlined" OnClick="() => Update(context)">Редактировать</MudButton>
+                    <MudButton Color="Color.Error" StartIcon="@Icons.Material.Filled.Delete" Variant="Variant.Outlined" OnClick="() => Delete(context)">Удалить</MudButton>
+                </MudButtonGroup>
+            </MudTd>
+        </RowTemplate>
+        <PagerContent>
+            <MudTablePager />
+        </PagerContent>
+    </MudTable>
+}
+
+@code {
+    private bool dense = false;
+    private bool hover = true;
+    private bool striped = false;
+    private bool bordered = false;
+    private string _searchString = "";
+
+    ActionResult<BuildingViewModel> result;
+    List<BuildingViewModel> buildings;
+
+    private async Task<DialogResult> ShowDialog(BuildingViewModel entity)
+    {
+        var parameters = new DialogParameters { ["Model"] = entity };
+        var options = new DialogOptions() { MaxWidth = MaxWidth.Small, Position = DialogPosition.Center };
+        var dialog = DialogService.Show<BuildingAdminDialogComponent>($"Создание здания", parameters, options);
+        return await dialog.Result;
+    }
+
+    private async Task GetAllBuildings(bool updateCache = true)
+    {
+        var serverResult = await dm.BuildingsManager.GetListViewModelsAsync(updateCache);
+        if (serverResult.Type != NotificationType.Success)
+        {
+            result = new ActionResult<BuildingViewModel>(serverResult.Type, serverResult.Text, serverResult.Title, serverResult.Errors);
+            buildings = new List<BuildingViewModel>();
+        }
+        else
+        {
+            result = new ActionResult<BuildingViewModel>();
+            buildings = serverResult.Data;
+            buildings.Sort();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await GetAllBuildings(false);
+        await base.OnInitializedAsync();
+    }
+
+    private async Task Create(BuildingViewModel entity)
+    {
+        var resultDialog = await ShowDialog(entity);
+
+        if (!resultDialog.Cancelled)
+        {
+            var actionResult = await dm.BuildingsManager.CreateAsync((BuildingViewModel)resultDialog.Data);
+            result = new ActionResult<BuildingViewModel>(actionResult.Type, actionResult.Text, actionResult.Title, actionResult.Errors);
+
+            if (result.Type == NotificationType.Warn)
+                Snackbar.Add(result.Text, Severity.Warning);
+            else if (await CheckResultOnError("Здание успешно добавлено")) await Create(entity);
+        }
+    }
+
+    private async Task Update(BuildingViewModel entity)
+    {
+        var model = new BuildingViewModel(entity.Id, entity.Name, entity.Address, entity.Floor);
+        var resultDialog = await ShowDialog(model);
+
+        if (!resultDialog.Cancelled)
+        {
+            var actionResult = await dm.BuildingsManager.UpdateAsync((BuildingViewModel)resultDialog.Data);
+            result = new ActionResult<BuildingViewModel>(actionResult.Type, actionResult.Text, actionResult.Title, actionResult.Errors);
+
+            if (result.Type == NotificationType.Warn)
+                Snackbar.Add(result.Text, Severity.Warning);
+            else if (await CheckResultOnError("Параметры успешно применены")) await Update(model);
+        }
+    }
+
+    private async Task Delete(BuildingViewModel entity)
+    {
+        var options = new DialogOptions() { MaxWidth = MaxWidth.ExtraSmall, Position = DialogPosition.TopCenter };
+        var dialog = DialogService.Show<ConfirmDeleteDiaologAdminComponent>($"Подтвердите действие", options);
+        var resultDialog = await dialog.Result;
+
+        if (!resultDialog.Cancelled)
+        {
+            var actionResult = await dm.BuildingsManager.DeleteAsync(entity.Id);
+            result = new ActionResult<BuildingViewModel>(actionResult.Type, actionResult.Text, actionResult.Title, actionResult.Errors);
+
+            if (result.Type == NotificationType.Warn)
+                Snackbar.Add(result.Text, Severity.Warning);
+            else
+            {
+                await CheckResultOnError("Данные успешно удалены");
+                buildings.Sort();
+            }
+        }
+    }
+
+    private async Task<bool> CheckResultOnError(string titleSnackbar)
+    {
+        if (result.Type == NotificationType.Success)
+        {
+            Snackbar.Add(titleSnackbar, Severity.Success);
+            await GetAllBuildings();
+            return false;
+        }
+        Snackbar.Add(result.Text, Severity.Error);
+        return true;
+    }
+
+    private async Task UpdateCache()
+    {
+        var buildingsResult = await dm.BuildingsManager.GetListViewModelsAsync();
+        result = new ActionResult<BuildingViewModel>(buildingsResult.Type, buildingsResult.Text, buildingsResult.Title, buildingsResult.Errors);
+        if (result.Type == NotificationType.Warn) { }
+        else if (result.Type != NotificationType.Success) Snackbar.Add(result.Text, Severity.Error);
+        else
+        {
+            buildings = buildingsResult.Data;
+            buildings.Sort();
+            Snackbar.Add("Данные успешно обновлены", Severity.Success);
+        }
+    }
+
+    private bool FilterFunc(BuildingViewModel building, string searchString)
+    {
+        if (string.IsNullOrWhiteSpace(searchString))
+            return true;
+        if (building.Name.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (building.Address.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        if ($"{building.Name} {building.Address} {building.Floor}".Contains(searchString))
+            return true;
+        return false;
+    }
+}
+

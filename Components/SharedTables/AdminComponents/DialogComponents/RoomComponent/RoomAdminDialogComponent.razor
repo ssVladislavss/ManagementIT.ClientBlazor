@@ -1,0 +1,111 @@
+﻿@using System.Text.RegularExpressions
+@if (Model.SelectBuilding.Any() && Model.SelectDepartment.Any())
+{
+    <MudDialog>
+        <DialogContent>
+            <MudForm Model="@Model" @ref="form">
+                <MudTextField @bind-Value="Model.Name"
+                              Label="Название"
+                              Required="true"
+                              MaxLength="50"
+                              Counter="50"
+                              For="(() => Model.Name)"
+                              Validation="Model.Validator.IsValid"/>
+                <MudTextField @bind-Value="Model.Floor"
+                              Label="На каком этаже"
+                              Required="true"
+                              MaxLength="50"
+                              Counter="50"
+                              For="(() => Model.Floor)"
+                              Validation="Model.Validator.IsValid"
+                              InputType="InputType.Number"/>
+                <MudSelect @bind-Value="Model.Building"
+                           Label="Здание"
+                           Required="true"
+                           For="(() => Model.Building)"
+                           Validation="Model.Validator.IsValid">
+                    @foreach (var building in Model.SelectBuilding)
+                        {
+                        <MudSelectItem Value="@building">
+                            @building.Name
+                        </MudSelectItem>
+                        }
+                </MudSelect>
+                <MudSelect @bind-Value="Model.Departament"
+                           Label="Отделение"
+                           Required="true"
+                           For="(() => Model.Departament)"
+                           Validation="Model.Validator.IsValid">
+                    @foreach (var departament in Model.SelectDepartment)
+                        {
+                        <MudSelectItem Value="@departament">
+                            @departament.Name
+                        </MudSelectItem>
+                        }
+                </MudSelect>
+                <MudTextField @bind-Value="Model.RequiredCountSocket"
+                              Label="Сколько требуется розеток"
+                              MaxLength="2"
+                              Counter="2"
+                              For="(() => Model.RequiredCountSocket)"
+                              Validation="Model.Validator.IsValid"
+                              InputType="InputType.Number"/>
+                <MudTextField @bind-Value="Model.CurrentCountSocket"
+                              Label="Сколько есть розеток"
+                              MaxLength="2"
+                              Counter="2"
+                              For="(() => Model.CurrentCountSocket)"
+                              Validation="Model.Validator.IsValid"
+                              InputType="InputType.Number"/>
+            </MudForm>
+        </DialogContent>
+        <DialogActions>
+            <MudButton Color="Color.Info" OnClick="Confirm">Подтвердить</MudButton>
+            <MudButton OnClick="Cancel">Отмена</MudButton>
+        </DialogActions>
+    </MudDialog>
+}
+@if (!Model.SelectBuilding.Any())
+{
+    <a href="/Admin/Buildings">Нету зданий</a>
+}
+@if (!Model.SelectDepartment.Any())
+{
+    <a href="/Admin/Subdivisions">Нету подразделений</a>
+}
+@if (!Model.SelectBuilding.Any() || !Model.SelectDepartment.Any())
+{
+    <MudButton OnClick="Cancel">Хорошо</MudButton>
+}
+
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+
+    [Parameter] public CreateOrEditRoomViewModel Model { get; set; }
+
+    MudForm form;
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+
+    private void Confirm()
+    {
+        form.Validate();
+        if(form.IsValid) MudDialog.Close(DialogResult.Ok(Model));
+    }
+
+    private IEnumerable<string> ValidatorNumber(string text)
+    {
+        var pattern = "#^[0-9]+$#";
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            yield return "Поле нельзя оставлять пустым";
+            yield break;
+        }
+        if (Regex.IsMatch(text, (pattern)))
+            yield return "Поле должно содержать только цифры";
+    }
+}

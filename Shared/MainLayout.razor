@@ -1,0 +1,56 @@
+﻿@inherits LayoutComponentBase
+@using Microsoft.AspNetCore.Http
+@inject IHttpContextAccessor httpContextAccessor
+@inject AuthenticationStateProvider AuthSate
+<MudThemeProvider />
+<MudDialogProvider FullWidth="true"
+                   MaxWidth="MaxWidth.Large"
+                   CloseButton="true"
+                   DisableBackdropClick="true"
+                   NoHeader="true"
+                   Position="DialogPosition.Center" />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="1">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@ToggleDrawer" />
+        <MudSpacer />
+        <MudAvatar Color="Color.Secondary">@httpContextAccessor.HttpContext.User?.Identity?.Name[0]</MudAvatar>
+        <MudMenu FullWidth="true">
+            <ActivatorContent>
+                <MudChip Icon="@Icons.Material.Filled.Person" Color="Color.Primary">@httpContextAccessor.HttpContext.User?.Identity?.Name</MudChip>
+            </ActivatorContent>
+            <ChildContent>
+                <MudMenuItem>Профиль</MudMenuItem>
+                <MudMenuItem>Контакты</MudMenuItem>
+                <form method="get" action="/account/logout">
+                    <MudMenuItem><button type="submit">Выйти</button></MudMenuItem>
+                </form>
+            </ChildContent>
+        </MudMenu>
+        
+    </MudAppBar>
+    <MudDrawer @bind-Open="@open" Elevation="1">
+        <MudDrawerHeader>
+            <MudLink Underline="Underline.None" Href="/" Typo="Typo.h6">ManagementIT</MudLink>
+        </MudDrawerHeader>
+        <NavMenu/>
+    </MudDrawer>
+    <MudMainContent Class="pt-16 px-16">
+        <MudContainer Class="mt-6">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+
+@code{
+
+    bool open = false;
+
+    void ToggleDrawer()
+    {
+        open = !open;
+    }
+
+}

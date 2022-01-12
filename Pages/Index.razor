@@ -1,0 +1,173 @@
+﻿@page "/"
+@inject DataManager dm
+@inject ISnackbar Snackbar
+
+@if (result?.Type == NotificationType.Warn)
+{
+    <MudAlert Severity="Severity.Warning">В данный момент невозможно отобразить страницу, сервер не отвечает</MudAlert>
+}
+
+<MudExpansionPanels DisableBorders="true" Elevation="0">
+    <MudExpansionPanel Icon="@Icons.Material.Filled.PieChartOutline" Text="Общая статистика заявок">
+        <MudFab OnClick="UpdateCache" Color="Color.Info" Icon="@Icons.Material.Filled.Update" Label="Обновить" Size="Size.Small" IconSize="Size.Small" Class="ma-2" />
+        <MudChart ChartType="ChartType.Donut" LegendPosition="@Position.Bottom" Width="300px" Height="300px"
+                  InputData="@data" InputLabels="@GetLabels()">
+        </MudChart>
+    </MudExpansionPanel>
+    <MudExpansionPanel Icon="@Icons.Material.Filled.MultilineChart" Text="Статистика заявок по месяцам">
+        <MudFab OnClick="UpdateCache" Color="Color.Info" Icon="@Icons.Material.Filled.Update" Label="Обновить" Size="Size.Small" IconSize="Size.Small" Class="ma-2" />
+        <div>
+            <MudChart ChartType="ChartType.Line" ChartSeries="@GetSeries()" @bind-SelectedIndex="index" XAxisLabels="@XAxisLabels" Width="100%" Height="350px"></MudChart>
+        </div>
+    </MudExpansionPanel>
+
+</MudExpansionPanels>
+
+@code {
+    private ActionResult<ActionViewModel> result;
+    public List<ActionViewModel> actions = new List<ActionViewModel>();
+
+    public string[] XAxisLabels = { "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь" };
+
+    private int index = -1;
+    private List<ChartSeries> series = new List<ChartSeries>();
+    private double[] data = new double[2];
+
+    private async Task GetAllActions()
+    {
+        var actionResult = await dm.ActionManager.GetListViewModelsAsync(false);
+        result = new ActionResult<ActionViewModel>(actionResult.Type, actionResult.Text, actionResult.Title, actionResult.Errors);
+        if (result.Type == NotificationType.Success)
+        {
+            actions = actionResult.Data;
+
+            var actionsOrCreateType = actions.Where(x => x.Action == "Создание").Select(x => x).ToList();
+            create = actionsOrCreateType.Count;
+
+            var actionsOrSuccessType = actions.Where(x => x.StateName == "Выполнена").Select(x => x).ToList();
+            success = actionsOrSuccessType.Count;
+            data[0] = create;
+            data[1] = success;
+        }
+    }
+
+    private string[] GetLabels()
+    {
+        string[] labels = { $"Создано: {create}", $"Выполнено: {success}" };
+        return labels;
+    }
+
+    private async Task UpdateCache()
+    {
+        var applicationResult = await dm.ActionManager.GetListViewModelsAsync();
+        result = new ActionResult<ActionViewModel>(applicationResult.Type, applicationResult.Text, applicationResult.Title, applicationResult.Errors);
+        if (result.Type == NotificationType.Warn) { }
+        else if (result.Type != NotificationType.Success) Snackbar.Add(result.Text, Severity.Error);
+        else
+        {
+            actions = applicationResult.Data;
+
+            var actionsOrCreateType = actions.Where(x => x.Action == "Создание").Select(x => x).ToList();
+            create = actionsOrCreateType.Count;
+
+            var actionsOrSuccessType = actions.Where(x => x.StateName == "Выполнена").Select(x => x).ToList();
+            success = actionsOrSuccessType.Count;
+
+            data[0] = create;
+            data[1] = success;
+
+            Snackbar.Add("Данные успешно обновлены", Severity.Success);
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await GetAllActions();
+        await base.OnInitializedAsync();
+    }
+
+    private List<ChartSeries> GetSeries()
+    {
+        double JanCreate = default;
+        double FebCreate = default;
+        double MarCreate = default;
+        double AprCreate = default;
+        double MayCreate = default;
+        double JunCreate = default;
+        double JulCreate = default;
+        double AugCreate = default;
+        double SepCreate = default;
+        double OktCreate = default;
+        double NoyCreate = default;
+        double DecCreate = default;
+
+        double JanComplete = default;
+        double FebComplete = default;
+        double MarComplete = default;
+        double AprComplete = default;
+        double MayComplete = default;
+        double JunComplete = default;
+        double JulComplete = default;
+        double AugComplete = default;
+        double SepComplete = default;
+        double OktComplete = default;
+        double NoyComplete = default;
+        double DecComplete = default;
+
+        var actionsOrCreateType = actions.Where(x => x.Action == "Создание").Select(x => x).ToList();
+        var actionsOrCompleteState = actions.Where(x => x.StateName == "Выполнена").Select(x => x).ToList();
+        var datesCreate = actionsOrCreateType.Select(x => x.DateOrTime).ToArray();
+        var datesComplete = actionsOrCompleteState.Select(x => x.DateOrTime).ToArray();
+
+        foreach (var item in datesCreate)
+        {
+            var month = item.Split('.')[1];
+            if (month == "01") JanCreate += 1;
+            if (month == "02") FebCreate += 1;
+            if (month == "03") MarCreate += 1;
+            if (month == "04") AprCreate += 1;
+            if (month == "05") MayCreate += 1;
+            if (month == "06") JunCreate += 1;
+            if (month == "07") JulCreate += 1;
+            if (month == "08") AugCreate += 1;
+            if (month == "09") SepCreate += 1;
+            if (month == "10") OktCreate += 1;
+            if (month == "11") NoyCreate += 1;
+            if (month == "12") DecCreate += 1;
+        }
+        foreach (var item in datesComplete)
+        {
+            var month = item.Split('.')[1];
+            if (month == "01") JanComplete += 1;
+            if (month == "02") FebComplete += 1;
+            if (month == "03") MarComplete += 1;
+            if (month == "04") AprComplete += 1;
+            if (month == "05") MayComplete += 1;
+            if (month == "06") JunComplete += 1;
+            if (month == "07") JulComplete += 1;
+            if (month == "08") AugComplete += 1;
+            if (month == "09") SepComplete += 1;
+            if (month == "10") OktComplete += 1;
+            if (month == "11") NoyComplete += 1;
+            if (month == "12") DecComplete += 1;
+        }
+        series = new List<ChartSeries>()
+                   {
+                       new ChartSeries() { Name = "Создано заявок", Data = new double[] { JanCreate, FebCreate, MarCreate, AprCreate, MayCreate, JunCreate, JulCreate, AugCreate, SepCreate, OktCreate, NoyCreate, DecCreate } },
+                       new ChartSeries() { Name = "Выполнено заявок", Data = new double[] { JanComplete, FebComplete, MarComplete, AprComplete, MayComplete, JunComplete, JulComplete, AugComplete, SepComplete, OktComplete, NoyComplete, DecComplete } }
+                   };
+        return series;
+    }
+
+    public static double create = default;
+    public static double success = default;
+
+    private double[] GetData()
+    {
+        data[0] = create;
+        data[1] = success;
+        return data;
+    }
+
+    public string[] labels = { $"Создано: {create}", $"Выполнено: {success}" };
+}

@@ -1,0 +1,360 @@
+﻿@page "/Admin/EmployeeDetails/{id:int}"
+
+@inject DataManager dm
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+@if (result == null)
+{
+    <MudSkeleton />
+    <MudSkeleton Animation="Animation.False" />
+    <MudSkeleton Animation="Animation.Wave" />
+}
+else if (result.Type == NotificationType.Warn)
+{
+    <MudAlert Severity="Severity.Warning">@result.Text</MudAlert>
+}
+else
+{
+    <MudCard>
+        <MudCardHeader>
+            <CardHeaderAvatar>
+                <MudMenu Variant="Variant.Outlined" Color="Color.Info" Icon="@Icons.Material.Filled.Settings">
+                    @if (employee.User == null)
+                    {
+                        <MudMenuItem OnClick="() => Update(new CreateOrEditEmployeeViewModel(employee))">
+                            Редактировать
+                        </MudMenuItem>
+                    }
+                    else
+                    {
+                        <MudMenuItem>
+                            Редактировать
+                        </MudMenuItem>
+                    }
+                    @if (employee.Photo == null)
+                    {
+                        <MudMenuItem>
+                            <InputFile id="fileInput" OnChange="UploadFiles" hidden multiple />
+                            <MudButton HtmlTag="label"
+                               StartIcon="@Icons.Filled.CloudUpload"
+                                for="fileInput">
+                                Загрузить фото
+                            </MudButton>
+                        </MudMenuItem>
+                    }
+                    else
+                    {
+                        <MudMenuItem>
+                            <InputFile id="fileInput" OnChange="UploadFiles" hidden multiple />
+                            <MudButton HtmlTag="label"
+                               StartIcon="@Icons.Filled.CloudUpload"
+                               for="fileInput">
+                               Изменить фото
+                            </MudButton>
+                        </MudMenuItem>
+                    }
+
+                    @if (employee.Photo != null)
+                    {
+                        <MudMenuItem OnClick="() => DeleteImageAsync(employee.Id)">Удалить фото</MudMenuItem>
+                    }
+                </MudMenu>
+            </CardHeaderAvatar>
+            <CardHeaderActions>
+
+                @*@if (employee.User == null)
+                {
+                    <MudFab Color="Color.Success" Label="Аккаунт" Icon="@Icons.Material.Filled.Add" Size="Size.Small" IconSize="Size.Medium" Class="ma-2" />
+                }*@
+            </CardHeaderActions>
+
+            <CardHeaderContent>
+                @if (employee.User == null)
+                {
+                    <MudChip Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info">@employee.Mail</MudChip>
+                    <MudChip Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error">Сотрудник не зарегистрирован</MudChip>
+                }
+                else
+                {
+                    <MudChip Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info">@employee.Mail</MudChip>
+                    <MudChip Size="Size.Small" Variant="Variant.Outlined" Color="Color.Success">@employee.User</MudChip>
+                }
+                <MudText Typo="Typo.body2">Идентификатор сотрудника: @employee.Id</MudText>
+                <MudText Typo="Typo.body2"><b>@employee.Surname @employee.Name @employee.Patronymic</b></MudText>
+            </CardHeaderContent>
+
+        </MudCardHeader>
+
+        <MudCardContent>
+            <MudText><b>Отделение:</b> @employee.Departament.Name</MudText>
+            <MudText><b>Должность:</b> @employee.Position.Name</MudText>
+
+            <MudText><b>Рабочий телефон:</b> @employee.WorkTelephone</MudText>
+            <MudText><b>Мобильный телефон:</b> @employee.MobileTelephone</MudText>
+
+            @if (employee.Photo != null)
+            {
+                <img width="400" height="400" src="data:image/bmp;base64, @(Convert.ToBase64String(employee.Photo.Photo))" />
+            }
+        </MudCardContent>
+        <MudCardActions>
+            <MudIconButton Icon="@Icons.Material.Filled.BackupTable" Color="Color.Primary" Link="/Admin/Employees" />
+        </MudCardActions>
+    </MudCard>
+}
+
+@code {
+    [Parameter] public int id { get; set; }
+
+    private ActionResult<EmployeeViewModel> result { get; set; }
+    private EmployeeViewModel employee;
+
+    private IBrowserFile files = null;
+
+    private bool _hidePosition;
+    private bool _loading;
+    private bool hover = true;
+
+    private async Task GetEmployee()
+    {
+        result = await dm.EmployeesManager.GetModelByIdAsync(id);
+        employee = result.Type == NotificationType.Success ? result.Data : null;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await GetEmployee();
+        await base.OnInitializedAsync();
+    }
+
+    private async Task UploadFiles(InputFileChangeEventArgs e)
+    {
+        foreach (var file in e.GetMultipleFiles())
+        {
+            files = file;
+        }
+
+        if (files != null)
+        {
+            var model = new CreateOrEditEmployeeViewModel(employee.Id, files);
+            var result = await dm.EmployeesManager.WorkOrPhotoEmployeeAsync(model);
+
+            if (result.Type == NotificationType.Warn)
+                Snackbar.Add(result.Text, Severity.Warning);
+            else if (result.Type == NotificationType.Error || result.Type == NotificationType.Info)
+                Snackbar.Add(result.Text, Severity.Error);
+            else
+            {
+                this.result = await dm.EmployeesManager.GetModelByIdAsync(id);
+                employee = this.result.Type == NotificationType.Success ? this.result.Data : employee;
+                Snackbar.Add("Фото добавлено", Severity.Success);
+            }
+        }
+    }
+
+    private async Task DeleteImageAsync(int employeeId)
+    {
+        result = await dm.EmployeesManager.DeleteImageEmployeeAsync(employeeId);
+
+        if (result.Type == NotificationType.Warn)
+            Snackbar.Add(result.Text, Severity.Warning);
+        else if (result.Type == NotificationType.Error || result.Type == NotificationType.Info)
+            Snackbar.Add($"{result.Text}", Severity.Error);
+        else
+        {
+            employee.Photo = null;
+            Snackbar.Add($"Параметры успешно применены", Severity.Success);
+        }
+    }
+
+
+    //private async Task ShowResetPasswordDialog(ResetPasswordEmployeeViewModel model)
+    //{
+
+    //    var parameters = new DialogParameters { ["Model"] = model };
+    //    var options = new DialogOptions() { MaxWidth = MaxWidth.Small, Position = DialogPosition.Center };
+    //    var dialog = DialogService.Show<ResetPasswordEmployeeComponent>($"Изменение пароля", parameters, options);
+    //    var resultDialog = await dialog.Result;
+
+    //    if (!resultDialog.Cancelled)
+    //    {
+    //        var entity = (ResetPasswordEmployeeViewModel)resultDialog.Data;
+    //        var forIdentityResult = await dm.EmployeesManager.ResetPasswordEmployeeAsync(entity);
+
+    //        if(forIdentityResult.Type == NotificationType.Warn)
+    //            Snackbar.Add(forIdentityResult.Text, Severity.Warning);
+    //        else if (forIdentityResult.Type == NotificationType.Error || forIdentityResult.Type == NotificationType.Info)
+    //            Snackbar.Add($"{forIdentityResult.Text}", Severity.Error);
+    //        else
+    //        {
+    //            Model = await dm.EmployeesManager.GetForUpdateAsync(id);
+    //            Snackbar.Add($"Параметры успешно применены", Severity.Success);
+    //        }
+    //    }
+    //}
+
+    //private async Task ShowUpdateAccountDialog(CreateOrEditAccountEmployeeViewModel model)
+    //{
+
+    //    var parameters = new DialogParameters { ["Model"] = model };
+    //    var options = new DialogOptions() { MaxWidth = MaxWidth.Medium, Position = DialogPosition.Center };
+    //    var dialog = DialogService.Show<UpdateAccountEmployeeComponent>($"Редактирование аккаунта", parameters, options);
+    //    var resultDialog = await dialog.Result;
+
+    //    if (!resultDialog.Cancelled)
+    //    {
+    //        var entity = (CreateOrEditAccountEmployeeViewModel)resultDialog.Data;
+    //        var forIdentityResult = await dm.EmployeesManager.UpdateAccountEmployeeAsync(entity);
+
+    //        if (forIdentityResult.Type == NotificationType.Warn)
+    //            Snackbar.Add(forIdentityResult.Text, Severity.Warning);
+    //        else if (forIdentityResult.Type == NotificationType.Error || forIdentityResult.Type == NotificationType.Info)
+    //            Snackbar.Add($"{forIdentityResult.Text}", Severity.Error);
+    //        else
+    //        {
+    //            Model = await dm.EmployeesManager.GetForUpdateAsync(id);
+    //            Snackbar.Add($"Параметры успешно применены", Severity.Success);
+    //        }
+    //    }
+    //}
+
+    //private async Task ShowRegisterDialog(RegisterEmployeeModel model)
+    //{
+
+    //    var parameters = new DialogParameters { ["Model"] = model };
+    //    var options = new DialogOptions() { MaxWidth = MaxWidth.Small, Position = DialogPosition.Center };
+    //    var dialog = DialogService.Show<RegisterEmployeeForIdentityComponent>($"Регистрация", parameters, options);
+    //    var resultDialog = await dialog.Result;
+
+    //    if (!resultDialog.Cancelled)
+    //    {
+    //        var entity = (RegisterEmployeeModel)resultDialog.Data;
+
+    //        if (entity.Password != entity.ConfirmPassword)
+    //        {
+    //            Snackbar.Add("Пароли не совпадают!", Severity.Info);
+    //            await ShowRegisterDialog(entity);
+    //        }
+    //        var forIdentityResult = await dm.EmployeesManager.RegisterEmployeeForIdentity(entity);
+
+    //        if (forIdentityResult.Type == NotificationType.Warn)
+    //            Snackbar.Add(forIdentityResult.Text, Severity.Warning);
+    //        else if (forIdentityResult.Type == NotificationType.Error || forIdentityResult.Type == NotificationType.Info)
+    //            Snackbar.Add($"{forIdentityResult.Text}", Severity.Error);
+    //        else
+    //        {
+    //            Model = await dm.EmployeesManager.GetForUpdateAsync(id);
+    //            Snackbar.Add($"Регистрация прошла успешно", Severity.Success);
+    //        }
+    //    }
+    //}
+
+    //private async Task ShowSetRoleEmployeeDialog(CreateOrEditRoleEmployeeModel entity)
+    //{
+    //    _action = "Установка ролей";
+    //    var selectModels = await dm.EmployeesManager.GetSetRoleEmployeeForIdentity(entity.UserName);
+
+    //    if (selectModels.Type == NotificationType.Warn)
+    //        Snackbar.Add(selectModels.Text, Severity.Warning);
+    //    else if (selectModels.Data != null)
+    //    {
+    //        entity.SelectedRole = selectModels.Data.SelectedRole;
+    //        entity.RoleNames = selectModels.Data.RoleNames;
+
+    //        var parameters = new DialogParameters { ["Model"] = entity };
+    //        var options = new DialogOptions() { MaxWidth = MaxWidth.Small };
+    //        var dialog = DialogService.Show<SetRoleEmployeeComponent>($"{_action}", parameters, options);
+    //        var resultDialog = await dialog.Result;
+
+    //        if (!resultDialog.Cancelled)
+    //        {
+    //            var model = (CreateOrEditRoleEmployeeModel)resultDialog.Data;
+    //            var result = await dm.EmployeesManager.PostSetRoleEmployeeAsync(model);
+
+    //            if (result.Type == NotificationType.Warn)
+    //                Snackbar.Add(result.Text, Severity.Warning);
+    //            else if (result.Type == NotificationType.Error || result.Type == NotificationType.Info)
+    //                Snackbar.Add($"{result.Text}", Severity.Error);
+    //            else
+    //            {
+    //                Snackbar.Add($"Параметры применены", Severity.Success);
+    //            }
+    //        }
+    //    }
+    //    else
+    //    {
+    //        Snackbar.Add(selectModels.Text, Severity.Error);
+    //    }
+
+    //}
+
+    //private async Task DeleteIdentity(EmployeeViewModel model)
+    //{
+    //    var options = new DialogOptions() { MaxWidth = MaxWidth.ExtraSmall, Position = DialogPosition.TopCenter };
+    //    var dialog = DialogService.Show<ConfirmDeleteDiaologAdminComponent>($"Подтвердите действие!", options);
+    //    var resultDialog = await dialog.Result;
+
+    //    if (!resultDialog.Cancelled)
+    //    {
+    //        var result = await dm.EmployeesManager.DeleteEmployeeForIdentity(model.Id);
+
+    //        if (result.Type == NotificationType.Warn)
+    //            Snackbar.Add(result.Text, Severity.Warning);
+    //        else if (result.Type == NotificationType.Error || result.Type == NotificationType.Info)
+    //            Snackbar.Add($"{result.Text}", Severity.Error);
+    //        else
+    //        {
+    //            Model = await dm.EmployeesManager.GetForUpdateAsync(id);
+    //            Snackbar.Add($"Аккаунт успешно удалён", Severity.Success);
+    //        }
+    //    }
+    //}
+
+    private async Task Update(CreateOrEditEmployeeViewModel entity)
+    {
+
+        var actionResult = await dm.EmployeesManager.GetForUpdateAsync(entity.Id);
+        result = new ActionResult<EmployeeViewModel>(actionResult.Type, actionResult.Text, actionResult.Title, actionResult.Errors);
+
+        if (result.Type == NotificationType.Warn) { }
+        else if (result.Type != NotificationType.Success)
+        {
+            Snackbar.Add(result.Text, Severity.Error);
+            await Update(entity);
+        }
+        else
+        {
+            entity.SelectDepartment = actionResult.Data.SelectDepartment;
+            entity.SelectPosition = actionResult.Data.SelectPosition;
+            if (entity.MobileTelephone == null) entity.MobileTelephone = "+7 ";
+            var resultDialog = await ShowDialog(entity, "Изменение");
+
+            if (!resultDialog.Cancelled)
+            {
+                result = await dm.EmployeesManager.UpdateAsync((CreateOrEditEmployeeViewModel)resultDialog.Data);
+                if (result.Type == NotificationType.Warn)
+                    Snackbar.Add(result.Text, Severity.Warning);
+                else if (result.Type != NotificationType.Success)
+                {
+                    Snackbar.Add(result.Text, Severity.Error);
+                    await Update(entity);
+                }
+                else
+                {
+                    await GetEmployee();
+                    Snackbar.Add("Параметры успешно применены", Severity.Success);
+                }
+            }
+        }
+    }
+
+    private async Task<DialogResult> ShowDialog(CreateOrEditEmployeeViewModel entity, string message)
+    {
+        var parameters = new DialogParameters { ["Model"] = entity };
+        var options = new DialogOptions() { MaxWidth = MaxWidth.Small, Position = DialogPosition.Center };
+        var dialog = DialogService.Show<EmployeeAdminDialogComponent>(message, parameters, options);
+        return await dialog.Result;
+    }
+
+}

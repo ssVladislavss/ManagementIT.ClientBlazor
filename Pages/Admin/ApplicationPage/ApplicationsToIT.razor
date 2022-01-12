@@ -1,0 +1,410 @@
+﻿@page "/ApplicationsToIT"
+
+@inject DataManager dm
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+@if (result == null)
+{
+    <MudSkeleton />
+    <MudSkeleton Animation="Animation.False" />
+    <MudSkeleton Animation="Animation.Wave" />
+}
+else if (result.Type == NotificationType.Warn)
+{
+    <MudAlert Severity="Severity.Warning">В данный момент невозможно отобразить страницу, сервер не отвечает</MudAlert>
+}
+else if (result.Errors.Any(x => x == TypeOfErrors.NoContent))
+{
+    <MudAlert Severity="Severity.Info">
+        В вашей организации нет ниодной заявки
+        <MudButton Color="Color.Success" StartIcon="@Icons.Material.Filled.Create" Variant="Variant.Outlined"
+               OnClick="() => Create()">Создать</MudButton>
+    </MudAlert>
+}
+else
+{
+    <MudTable Items="@application"
+          Dense="@dense" Hover="@hover" Bordered="@bordered" Striped="@striped"
+          Filter="(ApplicationTOITViewModel application) => FilterFunc(application, _searchString)"
+          HorizontalScrollbar="true"
+          SortLabel="Сортировать"
+          Class="text-nowrap">
+        <ToolBarContent>
+            <MudFab OnClick="() => Create()" Color="Color.Success" Icon="@Icons.Material.Filled.Add" Size="Size.Small" IconSize="Size.Small" Class="ma-2" />
+            <MudFab Link="/Admin/Archiv" Label="Архив" Color="Color.Info" Icon="@Icons.Material.Filled.Archive" Size="Size.Small" IconSize="Size.Small" Class="ma-2" />
+            <MudFab OnClick="UpdateCache" Color="Color.Info" Icon="@Icons.Material.Filled.Update" Label="Обновить" Size="Size.Small" IconSize="Size.Small" Class="ma-2" />
+
+            <MudSpacer />
+            <MudTextField @bind-Value="_searchString" Placeholder="Поиск" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"></MudTextField>
+        </ToolBarContent>
+        <HeaderContent>
+            <MudTh></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<ApplicationTOITViewModel, object>(x=>x.Id)">Номер</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<ApplicationTOITViewModel, object>(x=>x.State.Name)">Состояние</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<ApplicationTOITViewModel, object>(x=>x.Priority.Name)">Приоритет</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<ApplicationTOITViewModel, object>(x=>x.EmployeeFullName)">Ответственный</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<ApplicationTOITViewModel, object>(x=>x.IniciatorFullName)">Инициатор</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<ApplicationTOITViewModel, object>(x=>x.Contact)">Контакт инициатора</MudTableSortLabel></MudTh>
+        </HeaderContent>
+
+        <RowTemplate>
+            <MudTd DataLabel="">
+                <MudMenu Variant="Variant.Outlined" Color="Color.Info" Icon="@Icons.Material.Filled.Settings">
+
+                    <MudMenuItem OnClick="() => Update(new CreateOrEditApplicationToITViewModel(context))">
+                        Редактировать
+                    </MudMenuItem>
+
+                    @if (context.EmployeeId == 0)
+                    {
+                    <MudMenuItem OnClick="() => UpdateEmployee(context)">
+                        Назначить исполнителя
+                    </MudMenuItem>
+                    }
+                    else
+                    {
+                    <MudMenuItem OnClick="() => UpdateEmployee(context)">
+                        Изменить исполнителя
+                    </MudMenuItem>
+                    }
+
+
+                <MudMenuItem OnClick="() => UpdatePriority(context)">
+                    Изменить приоритет
+                </MudMenuItem>
+
+                <MudMenuItem OnClick="() => OnDelete(context)">
+                    Отправить в архив
+                </MudMenuItem>
+
+                <MudMenuItem OnClick="() => ActionByApplication(context.Id)">
+                    История заявки
+                </MudMenuItem>
+
+                <MudMenuItem OnClick="() => ShowDetailsApplication(context)">
+                    Подробнее
+                </MudMenuItem>
+
+            </MudMenu>
+        </MudTd>
+        <MudTd DataLabel="Номер">@context.Id</MudTd>
+        <MudTd DataLabel="Состояние">
+            <MudButton Style="@ColorBG(context.State.BGColor)" Variant="Variant.Outlined" OnClick="() => UpdateState(context)">
+                @context.State.Name
+            </MudButton>
+        </MudTd>
+        <MudTd Style="@ColorBG(context.State.BGColor)" DataLabel="Приоритет"><b>@context.Priority.Name</b></MudTd>
+        <MudTd Style="@ColorBG(context.State.BGColor)" DataLabel="Ответственный">@GetShortNameEmployee(context.EmployeeFullName)</MudTd>
+        <MudTd Style="@ColorBG(context.State.BGColor)" DataLabel="Инициатор">@GetShortNameEmployee(context.IniciatorFullName)</MudTd>
+        <MudTd Style="@ColorBG(context.State.BGColor)" DataLabel="Контакт инициатора">@context.Contact</MudTd>
+    </RowTemplate>
+    <PagerContent>
+        <MudTablePager RowsPerPageString="Заявок на странице" InfoFormat="{first_item}-{last_item} из {all_items}" />
+    </PagerContent>
+</MudTable>
+}
+
+@code {
+    private bool dense = true;
+    private bool hover = true;
+    private bool striped = false;
+    private bool bordered = false;
+    private string _searchString = "";
+
+    ActionResult<ApplicationTOITViewModel> result;
+    List<ApplicationTOITViewModel> application;
+
+    private async Task<DialogResult> ShowDialog(CreateOrEditApplicationToITViewModel entity, string message)
+    {
+        var options = new DialogOptions() { MaxWidth = MaxWidth.Small, Position = DialogPosition.CenterRight };
+        var parameters = new DialogParameters { ["Model"] = entity };
+        var dialog = DialogService.Show<ApplicationToITDialogComponent>(message, parameters, options);
+        return await dialog.Result;
+    }
+
+    private async Task GetViewModels(bool updateCache = true)
+    {
+        var actionResult = await dm.ApplicationsTOITDataManager.GetListViewModelsAsync(updateCache);
+        result = new ActionResult<ApplicationTOITViewModel>(actionResult.Type, actionResult.Text, actionResult.Title, actionResult.Errors);
+        if (result.Type == NotificationType.Success)
+        {
+            application = actionResult.Data;
+            application.Sort();
+        }
+        else application = new List<ApplicationTOITViewModel>();
+    }
+
+    private string GetShortNameEmployee(string fullName)
+    {
+        if (string.IsNullOrEmpty(fullName)) return null;
+        var employeeName = fullName.Split(" ");
+        var surname = employeeName[0];
+        var name = employeeName[1][0];
+        var patronymic = employeeName[2][0];
+        return $"{surname} {name}. {patronymic}.";
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await GetViewModels(false);
+        await base.OnInitializedAsync();
+    }
+
+    private async Task Create(CreateOrEditApplicationToITViewModel entity = null)
+    {
+        var actionResult = await dm.ApplicationsTOITDataManager.GetForCreateAsync();
+        result = new ActionResult<ApplicationTOITViewModel>(actionResult.Type, actionResult.Text, actionResult.Title, actionResult.Errors);
+
+        if (result.Type == NotificationType.Warn) { }
+        else if (result.Type != NotificationType.Success) Snackbar.Add(result.Text, Severity.Error);
+        else
+        {
+            var model = entity != null ? new CreateOrEditApplicationToITViewModel(entity) : actionResult.Data;
+            var resultDialog = await ShowDialog(model, "Создание");
+            if (!resultDialog.Cancelled)
+            {
+                result = await dm.ApplicationsTOITDataManager.CreateAsync((CreateOrEditApplicationToITViewModel)resultDialog.Data);
+                if (result.Type == NotificationType.Warn) { }
+                else if (result.Type != NotificationType.Success)
+                {
+                    Snackbar.Add(result.Text, Severity.Error);
+                    await Create((CreateOrEditApplicationToITViewModel)resultDialog.Data);
+                }
+                else
+                {
+                    await GetViewModels();
+                    Snackbar.Add("Заявка успешно добавлена", Severity.Success);
+                }
+            }
+        }
+    }
+
+    private async Task Update(CreateOrEditApplicationToITViewModel entity)
+    {
+        var actionResult = await dm.ApplicationsTOITDataManager.GetForUpdateAsync(entity.Id);
+        result = new ActionResult<ApplicationTOITViewModel>(actionResult.Type, actionResult.Text, actionResult.Title, actionResult.Errors);
+
+        if (result.Type == NotificationType.Warn) { }
+        else if (result.Type != NotificationType.Success) Snackbar.Add(result.Text, Severity.Error);
+        else
+        {
+
+            var resultDialog = await ShowDialog(actionResult.Data, "Изменение");
+            if (!resultDialog.Cancelled)
+            {
+                result = await dm.ApplicationsTOITDataManager.UpdateAsync((CreateOrEditApplicationToITViewModel)resultDialog.Data);
+                if (result.Type == NotificationType.Warn) { }
+                else if (result.Type != NotificationType.Success)
+                {
+                    Snackbar.Add(result.Text, Severity.Error);
+                    await Update((CreateOrEditApplicationToITViewModel)resultDialog.Data);
+                }
+                else
+                {
+                    await GetViewModels();
+                    Snackbar.Add("Параметры успешно применены", Severity.Success);
+                }
+            }
+        }
+    }
+
+    private async Task UpdateState(ApplicationTOITViewModel entity)
+    {
+        if (string.IsNullOrEmpty(entity.EmployeeFullName)) Snackbar.Add("Нельзя изменить, не назначен исполнитель", Severity.Info);
+        else
+        {
+            var states = await dm.ApplicationStatesManager.GetListViewModelsAsync();
+            result = new ActionResult<ApplicationTOITViewModel>(states.Type, states.Text, states.Title, states.Errors);
+            if (result.Type == NotificationType.Warn) { }
+            else if (result.Type != NotificationType.Success) Snackbar.Add(result.Text, Severity.Error);
+            else
+            {
+                var model = new SelectedStateViewModel() { SelectState = states.Data, State = entity.State };
+                var options = new DialogOptions() { MaxWidth = MaxWidth.ExtraSmall, Position = DialogPosition.Center };
+                var parameters = new DialogParameters { ["Model"] = model };
+                var dialog = DialogService.Show<SelectStateAdminDialogComponent>("Изменение состояния", parameters, options);
+                var dialogResult = await dialog.Result;
+                if (!dialogResult.Cancelled)
+                {
+                    var servModel = new UpdateStateViewModel(entity.Id, (SelectedStateViewModel)dialogResult.Data);
+                    if (!string.IsNullOrEmpty(entity.EmployeeFullName) && servModel.StateId == 1) Snackbar.Add("Нельзя установить это состояние, назначен исполнитель", Severity.Info);
+                    else
+                    {
+                        result = await dm.ApplicationsTOITDataManager.UpdateStateAsync(servModel);
+                        if (result.Type == NotificationType.Warn) { }
+                        else if (result.Type != NotificationType.Success) Snackbar.Add(result.Text, Severity.Error);
+                        else
+                        {
+                            entity.State = states.Data.FirstOrDefault(x => x.Id == servModel.StateId);
+                            Snackbar.Add("Параметры успешно применены", Severity.Success);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private async Task UpdatePriority(ApplicationTOITViewModel entity)
+    {
+        var priorities = await dm.ApplicationPrioritysManager.GetListViewModelsAsync();
+        result = new ActionResult<ApplicationTOITViewModel>(priorities.Type, priorities.Text, priorities.Title, priorities.Errors);
+        if (result.Type == NotificationType.Warn) { }
+        else if (result.Type != NotificationType.Success) Snackbar.Add(result.Text, Severity.Error);
+        else
+        {
+            var model = new SelectPriorityViewModel() { SelectPriority = priorities.Data, Priority = entity.Priority };
+            var options = new DialogOptions() { MaxWidth = MaxWidth.ExtraSmall, Position = DialogPosition.Center };
+            var parameters = new DialogParameters { ["Model"] = model };
+            var dialog = DialogService.Show<SelectPriorityAdminDialogComponent>("Изменение приоритета", parameters, options);
+            var dialogResult = await dialog.Result;
+            if (!dialogResult.Cancelled)
+            {
+
+                var servModel = new UpdatePriorityViewModel(entity.Id, (SelectPriorityViewModel)dialogResult.Data);
+                result = await dm.ApplicationsTOITDataManager.UpdatePriorityAsync(servModel);
+                if (result.Type == NotificationType.Warn) { }
+                else if (result.Type != NotificationType.Success) Snackbar.Add(result.Text, Severity.Error);
+                else
+                {
+                    entity.Priority = priorities.Data.FirstOrDefault(x => x.Id == servModel.PriorityId);
+                    Snackbar.Add("Параметры успешно применены", Severity.Success);
+                }
+            }
+        }
+    }
+
+    private async Task UpdateEmployee(ApplicationTOITViewModel entity)
+    {
+        var employees = await dm.EmployeesManager.GetListViewModelsAsync();
+        result = new ActionResult<ApplicationTOITViewModel>(employees.Type, employees.Text, employees.Title, employees.Errors);
+        if (result.Type == NotificationType.Warn) { }
+        else if (result.Type != NotificationType.Success) Snackbar.Add(result.Text, Severity.Error);
+        else
+        {
+            var model = new UpdateEmployeeOrApplicationViewModel();
+            if (entity.EmployeeId != 0) model.Employee = employees.Data.FirstOrDefault(x => x.Id == entity.EmployeeId);
+            model.SelectEmployee = employees.Data.OrderBy(x => x.Surname).ToList();
+            var options = new DialogOptions() { MaxWidth = MaxWidth.ExtraSmall, Position = DialogPosition.Center };
+            var parameters = new DialogParameters { ["Model"] = model };
+            var dialog = DialogService.Show<SelectEmployeeAdminDialogComponent>("Назначение сотрудника", parameters, options);
+            var dialogResult = await dialog.Result;
+            if (!dialogResult.Cancelled)
+            {
+                var request = (UpdateEmployeeOrApplicationViewModel)dialogResult.Data;
+                request.AppId = entity.Id;
+                result = await dm.ApplicationsTOITDataManager.UpdateEmployeeAsync(request);
+                if (result.Type == NotificationType.Warn) { }
+                else if (result.Type != NotificationType.Success) Snackbar.Add(result.Text, Severity.Error);
+                else
+                {
+                    await GetViewModels();
+                    Snackbar.Add("Параметры успешно применены", Severity.Success);
+                }
+            }
+        }
+    }
+
+    private async Task OnDelete(ApplicationTOITViewModel entity)
+    {
+        var options = new DialogOptions() { MaxWidth = MaxWidth.ExtraSmall, Position = DialogPosition.TopCenter };
+        var dialog = DialogService.Show<ConfirmDeleteDiaologAdminComponent>($"Подтвердите действие", options);
+        var resultDialog = await dialog.Result;
+
+        if (!resultDialog.Cancelled)
+        {
+            result = await dm.ApplicationsTOITDataManager.OnDeleteAsync(entity.Id);
+            if (result.Type == NotificationType.Warn) { }
+            else if (result.Type != NotificationType.Success) Snackbar.Add(result.Text, Severity.Error);
+            else
+            {
+                application.Remove(entity);
+                application.Sort();
+                Snackbar.Add("Заявка успешно помещена в архив", Severity.Success);
+            }
+        }
+    }
+
+    private async Task Delete(ApplicationTOITViewModel entity)
+    {
+        var options = new DialogOptions() { MaxWidth = MaxWidth.ExtraSmall, Position = DialogPosition.TopCenter };
+        var dialog = DialogService.Show<ConfirmDeleteDiaologAdminComponent>($"Подтвердите действие", options);
+        var resultDialog = await dialog.Result;
+
+        if (!resultDialog.Cancelled)
+        {
+            result = await dm.ApplicationsTOITDataManager.DeleteAsync(entity.Id);
+            if (result.Type == NotificationType.Warn) { }
+            else if (result.Type != NotificationType.Success) Snackbar.Add(result.Text, Severity.Error);
+            else
+            {
+                application.Remove(entity);
+                application.Sort();
+                Snackbar.Add("Заявка успешно удалена", Severity.Success);
+            }
+        }
+    }
+
+    private async Task ShowDetailsApplication(ApplicationTOITViewModel entity)
+    {
+        var options = new DialogOptions() { MaxWidth = MaxWidth.Small, Position = DialogPosition.Center };
+        var parameters = new DialogParameters { ["Model"] = entity };
+        var dialog = DialogService.Show<DetailsApplicationComponent>($"Заявка №{entity.Id}", parameters, options);
+        var dialogResult = await dialog.Result;
+        await GetViewModels();
+    }
+
+    private async Task ActionByApplication(int appId)
+    {
+        var actions = await dm.ActionManager.GetActionByApplicationIdAsync(appId);
+
+        if (actions.Type == NotificationType.Warn) { }
+        else if (actions.Type != NotificationType.Success)
+            Snackbar.Add(actions.Text, Severity.Error);
+        else
+        {
+            result = new ActionResult<ApplicationTOITViewModel>(actions.Type, actions.Text, actions.Title, actions.Errors);
+            var options = new DialogOptions() { MaxWidth = MaxWidth.Large, Position = DialogPosition.Center };
+            var parameters = new DialogParameters { ["Model"] = actions.Data };
+            var dialog = DialogService.Show<ListActionComponent>("История заявки", parameters, options);
+        }
+    }
+
+    private async Task UpdateCache()
+    {
+        var applicationResult = await dm.ApplicationsTOITDataManager.GetListViewModelsAsync();
+        result = new ActionResult<ApplicationTOITViewModel>(applicationResult.Type, applicationResult.Text, applicationResult.Title, applicationResult.Errors);
+        if (result.Type == NotificationType.Warn) { }
+        else if (result.Type != NotificationType.Success) Snackbar.Add(result.Text, Severity.Error);
+        else
+        {
+            application = applicationResult.Data;
+            application.Sort();
+            Snackbar.Add("Данные успешно обновлены", Severity.Success);
+        }
+    }
+
+    private bool FilterFunc(ApplicationTOITViewModel application, string searchString)
+    {
+        if (string.IsNullOrWhiteSpace(searchString))
+            return true;
+        if (application.DepartamentName.ToLower().Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (application.State.Name.ToLower().Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (application.Type.Name.ToLower().Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (application.Priority.Name.ToLower().Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (!string.IsNullOrEmpty(application.EmployeeFullName))
+        {
+            if (application.EmployeeFullName.ToLower().Contains(searchString, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        if (application.Id.ToString().Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        return false;
+    }
+
+    protected string ColorBG(string color) => $"background-color:{color};width:150px";
+}

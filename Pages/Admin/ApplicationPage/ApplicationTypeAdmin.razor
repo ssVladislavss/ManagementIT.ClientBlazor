@@ -1,0 +1,183 @@
+﻿@page "/Admin/Application/Type"
+
+@inject DataManager dm
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@*@attribute [Authorize(Roles = "RootAdmin")]*@
+@if (result == null)
+{
+    <MudSkeleton />
+    <MudSkeleton Animation="Animation.False" />
+    <MudSkeleton Animation="Animation.Wave" />
+}
+else if (result.Type == NotificationType.Warn)
+{
+    <MudAlert Severity="Severity.Warning">В данный момент невозможно отобразить страницу, сервер не отвечает</MudAlert>
+}
+else if (result.Errors.Any(x => x == TypeOfErrors.NoContent))
+{
+    <MudAlert Severity="Severity.Info">
+        В вашей организации не зарегистрировано ниодного здания
+        <MudButton Color="Color.Success" StartIcon="@Icons.Material.Filled.Create" Variant="Variant.Outlined"
+                   OnClick="() => Create()">Добавить</MudButton>
+    </MudAlert>
+}
+else
+{
+    <MudTable Items="@types"
+              Dense="@dense" Hover="@hover" Bordered="@bordered" Striped="@striped"
+              Filter="(ApplicationTypeViewModel entity) => FilterFunc(entity, _searchString)">
+        <ToolBarContent>
+            <MudFab OnClick="() => Create()" Color="Color.Success" Icon="@Icons.Material.Filled.Add" Size="Size.Small" IconSize="Size.Small" Class="ma-2" />
+            <MudFab OnClick="UpdateCache" Color="Color.Info" Icon="@Icons.Material.Filled.Update" Label="Обновить" Size="Size.Small" IconSize="Size.Small" Class="ma-2" />
+            <MudSpacer />
+            <MudTextField @bind-Value="_searchString" Placeholder="Поиск" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"></MudTextField>
+        </ToolBarContent>
+        <HeaderContent>
+            <MudTh><MudTableSortLabel SortBy="new Func<ApplicationTypeViewModel, object>(x=>x.Id)">Номер типа</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<ApplicationTypeViewModel, object>(x=>x.Name)">Название</MudTableSortLabel></MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Номер типа">@context.Id</MudTd>
+            <MudTd DataLabel="Название">@context.Name</MudTd>
+            <MudTd>
+                <MudButtonGroup OverrideStyles="false">
+                    <MudButton Color="Color.Primary"
+                               Variant="Variant.Outlined"
+                               StartIcon="@Icons.Material.Filled.Settings"
+                               OnClick="() => Update(context)">Редактировать</MudButton>
+                    <MudButton Color="Color.Secondary" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Delete" OnClick="() => Delete(context)">Удалить</MudButton>
+                </MudButtonGroup>
+            </MudTd>
+        </RowTemplate>
+        <PagerContent>
+            <MudTablePager RowsPerPageString="Заявок на странице" InfoFormat="{first_item}-{last_item} из {all_items}" />
+        </PagerContent>
+    </MudTable>
+}
+
+@code {
+    private bool dense = false;
+    private bool hover = true;
+    private bool striped = false;
+    private bool bordered = false;
+    private string _searchString = "";
+
+    ActionResult<ApplicationTypeViewModel> result;
+    List<ApplicationTypeViewModel> types;
+
+    private async Task<DialogResult> ShowDialog(ApplicationTypeViewModel entity, string message)
+    {
+        var options = new DialogOptions() { MaxWidth = MaxWidth.Small, Position = DialogPosition.Center };
+        var parameters = new DialogParameters { ["Model"] = entity };
+        var dialog = DialogService.Show<AppliactionTypeAdminDialogComponent>(message, parameters, options);
+        return await dialog.Result;
+    }
+
+    private async Task UpdateCache()
+    {
+        var typeResult = await dm.ApplicationTypesManager.GetListViewModelsAsync();
+        result = new ActionResult<ApplicationTypeViewModel>(typeResult.Type, typeResult.Text, typeResult.Title, typeResult.Errors);
+        if (result.Type == NotificationType.Warn) { }
+        else if (result.Type != NotificationType.Success) Snackbar.Add(result.Text, Severity.Error);
+        else
+        {
+            types = typeResult.Data;
+            types.Sort();
+            Snackbar.Add("Данные успешно обновлены", Severity.Success);
+        }
+    }
+
+    private async Task GetViewModels(bool updateCache = true)
+    {
+        var actionResult = await dm.ApplicationTypesManager.GetListViewModelsAsync(updateCache);
+        result = new ActionResult<ApplicationTypeViewModel>(actionResult.Type, actionResult.Text, actionResult.Title, actionResult.Errors);
+        if (result.Type == NotificationType.Success)
+        {
+            types = actionResult.Data;
+            types.Sort();
+        }
+        else types = new List<ApplicationTypeViewModel>();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await GetViewModels(false);
+        await base.OnInitializedAsync();
+    }
+
+    private async Task Create(ApplicationTypeViewModel entity = null)
+    {
+        var model = entity == null ? new ApplicationTypeViewModel() : entity;
+        var resultDialog = await ShowDialog(model, "Создание");
+
+        if (!resultDialog.Cancelled)
+        {
+            result = await dm.ApplicationTypesManager.CreateAsync((ApplicationTypeViewModel)resultDialog.Data);
+            if (result.Type == NotificationType.Warn) { }
+            else if (result.Type != NotificationType.Success)
+            {
+                Snackbar.Add(result.Text, Severity.Error);
+                await Create((ApplicationTypeViewModel)resultDialog.Data);
+            }
+            else
+            {
+                await GetViewModels();
+                Snackbar.Add("Тип успешно добавлено", Severity.Success);
+            }
+        }
+    }
+
+    private async Task Update(ApplicationTypeViewModel entity)
+    {
+        var model = new ApplicationTypeViewModel(entity.Id, entity.Name);
+        var resultDialog = await ShowDialog(model, "Изменение");
+
+        if (!resultDialog.Cancelled)
+        {
+            result = await dm.ApplicationTypesManager.UpdateAsync((ApplicationTypeViewModel)resultDialog.Data);
+            if (result.Type == NotificationType.Warn) { }
+            else if (result.Type != NotificationType.Success)
+            {
+                Snackbar.Add(result.Text, Severity.Error);
+                await Update((ApplicationTypeViewModel)resultDialog.Data);
+            }
+            else
+            {
+                await GetViewModels();
+                Snackbar.Add("Параметры успешно применены", Severity.Success);
+            }
+        }
+    }
+
+    private async Task Delete(ApplicationTypeViewModel entity)
+    {
+        var options = new DialogOptions() { MaxWidth = MaxWidth.ExtraSmall, Position = DialogPosition.TopCenter };
+        var dialog = DialogService.Show<ConfirmDeleteDiaologAdminComponent>($"Подтвердите действие", options);
+        var resultDialog = await dialog.Result;
+
+        if (!resultDialog.Cancelled)
+        {
+            result = await dm.ApplicationTypesManager.DeleteAsync(entity.Id);
+            if (result.Type == NotificationType.Warn) { }
+            else if (result.Type != NotificationType.Success) Snackbar.Add(result.Text, Severity.Error);
+            else
+            {
+                types.Remove(entity);
+                if(types.Any()) types.Sort();
+                Snackbar.Add("Тип успешно удалено", Severity.Success);
+            }
+        }
+    }
+
+    private bool FilterFunc(ApplicationTypeViewModel entity, string searchString)
+    {
+        if (string.IsNullOrWhiteSpace(searchString))
+            return true;
+        if (entity.Name.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        return false;
+    }
+}
+

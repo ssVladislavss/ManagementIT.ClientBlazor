@@ -1,0 +1,44 @@
+﻿
+
+@*<MudDialog>
+    <DialogContent>
+        <MudForm @bind-IsValid="@success">
+
+            <MudSelect @bind-Value="Model.Departament"
+                       Required="true"
+                       Label="Отделение"
+                       RequiredError="Поле нельзя оставить пустым">
+                @foreach (var departament in Model.SelectedDepartament)
+                {
+                    <MudSelectItem Value="@departament">
+                        @departament.Name
+                    </MudSelectItem>
+                }
+            </MudSelect>
+            
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Info" Disabled="@(!success)" OnClick="Confirm">Подтвердить</MudButton>
+        <MudButton OnClick="Cancel">Отмена</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+
+    [Parameter] public CreateOrEditEmployeeViewModel Model { get; set; }
+
+    private bool success;
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+
+    private void Confirm()
+    {
+        MudDialog.Close(DialogResult.Ok(Model));
+    }
+}*@

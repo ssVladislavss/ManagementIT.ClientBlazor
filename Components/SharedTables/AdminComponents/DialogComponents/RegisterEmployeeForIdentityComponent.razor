@@ -1,0 +1,99 @@
+﻿@*@using System.ComponentModel.DataAnnotations
+@using System.Text.RegularExpressions
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudForm Model="@Model" @ref="form">
+            <MudTextField @bind-Value="Model.UserName"
+                          Required="true"
+                          Label="Логин"
+                          MaxLength="40"
+                          Counter="40"
+                          For="(() => Model.UserName)"
+                          Validation="Model.Validator.IsValid" />
+
+            <MudTextField @bind-Value="Model.Password"
+                          Required="true"
+                          Label="Пароль"
+                          MaxLength="16"
+                          Counter="16"
+                          InputType="InputType.Password"
+                          For="(() => Model.Password)"
+                          Validation="Model.Validator.IsValid" />
+            <MudTextField @bind-Value="Model.ConfirmPassword"
+                          Required="true"
+                          Label="Подтвердите пароль"
+                          MaxLength="16"
+                          Counter="16"
+                          InputType="InputType.Password"
+                          For="(() => Model.ConfirmPassword)"
+                          Validation="Model.Validator.IsValid" />
+
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Info" OnClick="Confirm">Подтвердить</MudButton>
+        <MudButton OnClick="Cancel">Отмена</MudButton>
+    </DialogActions>
+</MudDialog>
+
+
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+    [Parameter] public RegisterEmployeeModel Model { get; set; }
+
+    MudForm form;
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+
+    private void Confirm()
+    {
+        form.Validate();
+        if (Model.Password != Model.ConfirmPassword)
+            Snackbar.Add("Пароли не совпадают", Severity.Info);
+        else if (form.IsValid) MudDialog.Close(DialogResult.Ok(Model));
+    }
+
+
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+    }
+
+    bool success;
+    MudTextField<string> textValid;
+
+    private IEnumerable<string> ValidatorUserName(string userName)
+    {
+        if (string.IsNullOrWhiteSpace(userName))
+        {
+            yield return "Поле нельзя оставлять пустым";
+            yield break;
+        }
+        if (!Regex.IsMatch(userName, ("^[a-zA-Z0-9](_(?!(\\.|_))|\\.(?!(_|\\.))|[a-zA-Z0-9]){6,18}[a-zA-Z0-9]$")))
+            yield return "Нельзя использвать это логин, пример: S_login_S";
+    }
+
+    private IEnumerable<string> PasswordStrength(string pw)
+    {
+        if (string.IsNullOrWhiteSpace(pw))
+        {
+            yield return "Поле нельзя оставить пустым";
+            yield break;
+        }
+        if (pw.Length < 8)
+            yield return "Длина пароля должна быть не менее 8 символов";
+        if (!Regex.IsMatch(pw, @"[A-Z]"))
+            yield return "Пароль должен содержать по крайней мере одну заглавную букву";
+        if (!Regex.IsMatch(pw, @"[a-z]"))
+            yield return "Пароль должен содержать по крайней мере одну строчную букву";
+        if (!Regex.IsMatch(pw, @"[0-9]"))
+            yield return "Пароль должен содержать хотя бы одну цифру";
+    }
+}*@

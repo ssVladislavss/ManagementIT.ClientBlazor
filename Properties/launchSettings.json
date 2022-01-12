@@ -1,0 +1,14 @@
+{
+  
+  "profiles": {
+    "UIBlazor": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "dotnetRunMessages": "true",
+      "applicationUrl": "https://localhost:2001;http://localhost:2000"
+    }
+  }
+}

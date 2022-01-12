@@ -1,0 +1,165 @@
+﻿@page "/Admin/LogAdmin"
+@using UIBlazor.Models.MongoModels
+@inject DataManager dm
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+@if (result == null)
+{
+    <MudSkeleton />
+    <MudSkeleton Animation="Animation.False" />
+    <MudSkeleton Animation="Animation.Wave" />
+}
+else if (result.Type == NotificationType.Warn)
+{
+    <MudAlert Severity="Severity.Warning">@result.Text</MudAlert>
+}
+else if (result.Type == NotificationType.Error)
+{
+    <MudAlert Severity="Severity.Error">@result.Text</MudAlert>
+}
+else if (!Elements.Any())
+{
+    <MudAlert Severity="Severity.Info">Логов нет</MudAlert>
+}
+else
+{
+    <MudTable Items="@Elements" MultiSelection="true" @bind-SelectedItems="selectedItems" Dense="@dense" Hover="@hover" Bordered="@bordered" Striped="@striped"
+              Filter="(LogMessage log) => FilterFunc(log, _searchString)">
+        <ToolBarContent>
+            <MudSpacer />
+            <MudTextField @bind-Value="_searchString" Placeholder="Поиск" Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"></MudTextField>
+        </ToolBarContent>
+        <HeaderContent>
+            <MudTh><MudTableSortLabel SortBy="new Func<LogMessage, object>(x=>x.Address)">Адрес</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<LogMessage, object>(x=> Convert.ToDateTime(x.DateOrTime))">Дата</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<LogMessage, object>(x=> x.Iniciator)">Инициатор</MudTableSortLabel></MudTh>
+            <MudTh>Сообщение</MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<LogMessage, object>(x=> x.Type)">Тип</MudTableSortLabel></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Адрес">
+                @if (selectedItems.Any(x => x.Id == context.Id))
+                    {
+                    <MudIconButton OnClick="() => Delete(null, context)" Icon="@Icons.Material.Filled.Delete" aria-label="Удалить"></MudIconButton>
+                    }
+                @context.Address
+            </MudTd>
+            <MudTd DataLabel="Дата">@context.DateOrTime</MudTd>
+            <MudTd DataLabel="Инициатор">@context.Iniciator</MudTd>
+            <MudTd DataLabel="Сообщение">
+                @context.Message?.Split('|')[0]
+                <MudIconButton OnClick="()=> ShowMessage(context.Message)" Icon="@Icons.Material.Filled.Visibility" Color="Color.Success"></MudIconButton>
+            </MudTd>
+            <MudTd DataLabel="Тип">@context.Type</MudTd>
+
+        </RowTemplate>
+        <PagerContent>
+            <MudTablePager PageSizeOptions="new int[] {50, 100}" />
+            @if (selectedItems.Any())
+                {
+                <MudTd><MudIconButton OnClick="() => Delete(selectedItems)" Icon="@Icons.Material.Filled.Delete" aria-label="Удалить выбранные"></MudIconButton>Удалить выбранные</MudTd>
+                }
+        </PagerContent>
+        <FooterContent>
+            <MudTd>Выбрать все</MudTd>
+        </FooterContent>
+
+    </MudTable>
+}
+
+
+@code {
+    private bool hover = true;
+    private HashSet<LogMessage> selectedItems = new HashSet<LogMessage>();
+
+    private bool dense = false;
+    private bool striped = false;
+    private bool bordered = false;
+    private string _searchString = "";
+
+    private List<LogMessage> Elements;
+    private ActionResult<LogMessage> result;
+
+    private async Task GetListLogs()
+    {
+        var actionResult = await dm.MongoDbManager.GetAllLogsAsync();
+        result = new ActionResult<LogMessage>(actionResult.Type, actionResult.Text, actionResult.Title, actionResult.Errors);
+        if (result.Type == NotificationType.Success)
+        {
+            Elements = actionResult.Data.OrderByDescending(x => Convert.ToDateTime(x.DateOrTime)).ToList();
+        }
+        else Elements = new List<LogMessage>();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await GetListLogs();
+        await base.OnInitializedAsync();
+    }
+
+    private async Task ShowMessage(string message)
+    {
+        var parameters = new DialogParameters { ["Message"] = message };
+        var options = new DialogOptions() { MaxWidth = MaxWidth.Medium, Position = DialogPosition.Center };
+        DialogService.Show<DetailsMessageLogComponent>($"Подробности лога", parameters, options);
+    }
+
+    private async Task Delete(HashSet<LogMessage> _selectedItems = null, LogMessage message = null)
+    {
+        if (message != null)
+            result = await dm.MongoDbManager.DeleteLog(message.Id);
+        else
+        {
+            var listItem = _selectedItems.Select(x => x.Id).ToList();
+            result = await dm.MongoDbManager.DeleteLog(listItem);
+        }
+
+        if (result.Type == NotificationType.Warn)
+            Snackbar.Add(result.Text, Severity.Warning);
+        else if (result.Type == NotificationType.Error)
+            Snackbar.Add(result.Text, Severity.Error);
+        else
+        {
+            if(_selectedItems != null)
+            {
+                foreach (var item in selectedItems)
+                {
+                    Elements.Remove(item);
+                }
+                selectedItems.Clear();
+                if(Elements.Any()) Elements = Elements.OrderByDescending(x => Convert.ToDateTime(x.DateOrTime)).ToList();
+                Snackbar.Add("Записи успешно удалены", Severity.Success);
+            }
+            else
+            {
+                Elements.Remove(message);
+                selectedItems.Remove(message);
+                if(Elements.Any()) Elements = Elements.OrderByDescending(x => Convert.ToDateTime(x.DateOrTime)).ToList();
+                Snackbar.Add("Запись успешно удалена", Severity.Success);
+            }
+        }
+    }
+
+    private bool FilterFunc(LogMessage element, string searchString)
+    {
+        if (string.IsNullOrWhiteSpace(searchString))
+            return true;
+        if (!string.IsNullOrEmpty(element.Iniciator))
+        {
+            if (element.Iniciator.Contains(searchString, StringComparison.OrdinalIgnoreCase)) return true;
+        }
+
+        if (!string.IsNullOrEmpty(element.Message))
+        {
+            if (element.Message.Contains(searchString, StringComparison.OrdinalIgnoreCase)) return true;
+        }
+
+        if (element.Address.Contains(searchString, StringComparison.OrdinalIgnoreCase)) return true;
+        if (element.Type.Contains(searchString, StringComparison.OrdinalIgnoreCase)) return true;
+        if (element.DateOrTime.Contains(searchString, StringComparison.OrdinalIgnoreCase)) return true;
+
+        return false;
+    }
+}

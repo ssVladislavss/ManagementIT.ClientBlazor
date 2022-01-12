@@ -1,0 +1,167 @@
+﻿@using System.ComponentModel.DataAnnotations
+@using System.Text.RegularExpressions
+
+<MudDialog>
+    <DialogContent>
+        <MudForm Model="@Model" @ref="form">
+            <MudTextField @bind-Value="Model.Surname"
+                          Required="true"
+                          Label="Фамилия"
+                          MaxLength="40"
+                          Counter="40"
+                          For="() => Model.Surname"
+                          Validation="Model.Validator.IsValid" />
+
+            <MudTextField @bind-Value="Model.Name"
+                          Required="true"
+                          Label="Имя"
+                          MaxLength="40"
+                          Counter="40"
+                          For="() => Model.Name"
+                          Validation="Model.Validator.IsValid" />
+
+            <MudTextField @bind-Value="Model.Patronymic"
+                          Required="true"
+                          Label="Отчество"
+                          MaxLength="40"
+                          Counter="40"
+                          For="() => Model.Patronymic"
+                          Validation="Model.Validator.IsValid" />
+
+            <MudSelect @bind-Value="Model.Departament"
+                       Required="true"
+                       Label="Отделение"
+                       For="() => Model.Departament"
+                       Validation="Model.Validator.IsValid">
+                @foreach (var departament in Model.SelectDepartment)
+                {
+                    <MudSelectItem Value="@departament">
+                        @departament.Name
+                    </MudSelectItem>
+                }
+            </MudSelect>
+            <MudSelect @bind-Value="Model.Position"
+                       Required="true"
+                       Label="Должность"
+                       For="() => Model.Position"
+                       Validation="Model.Validator.IsValid">
+                @foreach (var position in Model.SelectPosition)
+                {
+                    <MudSelectItem Value="@position">
+                        @position.Name
+                    </MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudTextField @bind-Value="Model.WorkTelephone"
+                          Label="Рабочий телефон"
+                          MaxLength="20"
+                          Counter="20"
+                          For="() => Model.WorkTelephone"
+                          Validation="Model.Validator.IsValid"
+                          InputType="InputType.Telephone" />
+
+            <MudTextField @bind-Value="Model.MobileTelephone"
+                          Label="Мобильный телефон"
+                          MaxLength="20"
+                          Counter="20"
+                          For="() => Model.MobileTelephone"
+                          Validation="Model.Validator.IsValid"
+                          InputType="InputType.Telephone" />
+
+            <MudTextField @bind-Value="Model.Mail"
+                          Required="true"
+                          RequiredError="Поле нельзя оставить пустым"
+                          Label="Рабочая почта"
+                          MaxLength="40"
+                          Counter="40"
+                          For="() => Model.Mail"
+                          Validation="Model.Validator.IsValid" />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Info" OnClick="Confirm">Подтвердить</MudButton>
+        <MudButton OnClick="Cancel">Отмена</MudButton>
+    </DialogActions>
+</MudDialog>
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+
+    [Parameter] public CreateOrEditEmployeeViewModel Model { get; set; }
+
+    MudForm form;
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+
+    private void Confirm()
+    {
+        form.Validate();
+        if (form.IsValid) MudDialog.Close(DialogResult.Ok(Model));
+    }
+
+    bool success;
+    MudTextField<string> textValid;
+
+    private IEnumerable<string> Validator(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            yield return "Поле нельзя оставлять пустым";
+            yield break;
+        }
+        if (Regex.IsMatch(text, ("^.*[^A-zА-яЁё].*$")))
+            yield return "Поле должно содержать только буквы";
+    }
+
+    private IEnumerable<string> ValidatorTelephone(string telephone)
+    {
+        if (string.IsNullOrWhiteSpace(telephone))
+        {
+            yield return "Поле нельзя оставлять пустым";
+            yield break;
+        }
+        if (!Regex.IsMatch(telephone, (@"^\+?\d{1,3}?[- .]?\(?(?:\d{2,3})\)?[- .]?\d\d\d[- .]?\d\d\d\d$")))
+            yield return "Номер не валиден";
+    }
+
+    private IEnumerable<string> ValidatorDepartament(DepartmentViewModel model)
+    {
+        if (model == null)
+        {
+            yield return "Поле нельзя оставлять пустым";
+            yield break;
+        }
+
+    }
+
+    private IEnumerable<string> ValidatorWorkTelephone(string workTelephone)
+    {
+        if (string.IsNullOrWhiteSpace(workTelephone))
+            yield break;
+        if (!Regex.IsMatch(workTelephone, (@"^\+?\d{1,3}?[- .]?\(?(?:\d{2,3})\)?[- .]?\d\d\d[- .]?\d\d\d\d$")))
+            yield return "Номер не валиден";
+    }
+
+    private IEnumerable<string> ValidatorUserName(string userName)
+    {
+        if (string.IsNullOrWhiteSpace(userName))
+        {
+            yield return "Поле нельзя оставлять пустым";
+            yield break;
+        }
+        if (!Regex.IsMatch(userName, ("^[a-zA-Z0-9](_(?!(\\.|_))|\\.(?!(_|\\.))|[a-zA-Z0-9]){6,18}[a-zA-Z0-9]$")))
+            yield return "Попробуйте другой UserName";
+    }
+
+    private IEnumerable<string> ValidatorSelected(string selectValue)
+    {
+        if (selectValue == null)
+        {
+            yield return "Выберите значение из списка";
+            yield break;
+        }
+    }
+}

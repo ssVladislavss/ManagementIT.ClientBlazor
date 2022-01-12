@@ -1,0 +1,161 @@
+﻿@inject IDialogService DialogService
+@inject DataManager dm
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        @if (ApplicationId == 0)
+        {
+            <MudAlert Severity="Severity.Info">История заявки №@AppId()</MudAlert>
+        }
+        else
+        {
+            <MudAlert Severity="Severity.Info">История заявки №@ApplicationId</MudAlert>
+        }
+        <MudTable Items="@Model" FixedHeader="@fixed_header" FixedFooter="@fixed_footer" Height="@(fixed_header || fixed_footer ?"400px":"")">
+            <HeaderContent>
+                <MudTh></MudTh>
+                <MudTh><MudTableSortLabel SortBy="new Func<ActionViewModel, object>(x=>x.StateName)">Состояние</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel SortBy="new Func<ActionViewModel, object>(x=>x.UserNameIniciator)">Инициатор</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel SortBy="new Func<ActionViewModel, object>(x=>Convert.ToDateTime(x.DateOrTime))">Дата</MudTableSortLabel></MudTh>
+                <MudTh>Описание</MudTh>
+                <MudTh><MudTableSortLabel SortBy="new Func<ActionViewModel, object>(x=>x.Action)">Действие</MudTableSortLabel></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="()=> Delete(context)"></MudIconButton>
+                </MudTd>
+                <MudTd DataLabel="Состояние">@context.StateName</MudTd>
+                <MudTd DataLabel="Инициатор">
+                    <MudTooltip Color="Color.Success">
+                        <ChildContent>
+                            <MudButton Color="Color.Info" OnClick="() => ShowContactIniciator(context)">@(context.UserNameIniciator == null ? "Пусто" : context.UserNameIniciator)</MudButton>
+                        </ChildContent>
+                        <TooltipContent>
+                            @if (IniciatorId == context.IniciatorId)
+                            {
+                                <MudText Typo="Typo.body2">@(WorkTelephone != null ? "Рабочий:" : "" )@WorkTelephone</MudText>
+                                <MudText Typo="Typo.body2">@(MobileTelephone != null ? "Мобильный:" : "" )@MobileTelephone</MudText>
+                                <MudText Typo="Typo.body2">@(Email != null ? "Почта:" : "" )@Email</MudText>
+                            }
+                        </TooltipContent>
+                    </MudTooltip>
+                </MudTd>
+                <MudTd DataLabel="Дата">@context.DateOrTime</MudTd>
+                <MudTd DataLabel="Описание">
+                    <MudButton Color="Color.Info" Variant="Variant.Outlined" OnClick="() => DetailsContent(context)">Описание</MudButton>
+                </MudTd>
+                <MudTd DataLabel="Действие">@context.Action</MudTd>
+
+            </RowTemplate>
+
+            <PagerContent>
+                @if (Model.Count != 0)
+                {
+                    <MudButton StartIcon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="()=> DeleteAll()">Очистить</MudButton>
+                }
+                <MudTablePager PageSizeOptions="new int[]{50, 100}" />
+            </PagerContent>
+        </MudTable>
+
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Primary" Variant="Variant.Outlined" OnClick="Cancel">Закрыть</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+
+    [Parameter] public List<ActionViewModel> Model { get; set; }
+
+    private string MobileTelephone;
+    private string WorkTelephone;
+    private string Email;
+    private int IniciatorId;
+
+    private int ApplicationId = 0;
+
+    private int AppId()
+    {
+        Model = Model.OrderByDescending(x => Convert.ToDateTime(x.DateOrTime)).ToList();
+        foreach (var item in Model)
+        {
+            ApplicationId = item.AppId;
+            break;
+        }
+        return ApplicationId;
+    }
+
+    bool fixed_header = true;
+    bool fixed_footer = false;
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void DetailsContent(ActionViewModel entity)
+    {
+        var options = new DialogOptions() { MaxWidth = MaxWidth.Small, Position = DialogPosition.Center };
+        var parameters = new DialogParameters { ["Message"] = entity.ContentApp };
+        var dialog = DialogService.Show<DetailsMessageLogComponent>("Описание заявки", parameters, options);
+    }
+
+    private async Task Delete(ActionViewModel entity)
+    {
+        var options = new DialogOptions() { MaxWidth = MaxWidth.ExtraSmall, Position = DialogPosition.TopCenter };
+        var dialog = DialogService.Show<ConfirmDeleteDiaologAdminComponent>($"Подтвердите действие", options);
+        var resultDialog = await dialog.Result;
+
+        if (!resultDialog.Cancelled)
+        {
+            var ids = new DeleteSelectedActionRequest(new List<int>() { entity.Id });
+            var result = await dm.ActionManager.DeleteSelectedAsync(ids);
+            if (result.Type == NotificationType.Warn) Snackbar.Add("Сервер не отвечает", Severity.Warning);
+            else if (result.Type != NotificationType.Success) Snackbar.Add(result.Text, Severity.Error);
+            else
+            {
+                Model.Remove(entity);
+                if (Model.Any()) Model = Model.OrderByDescending(x => Convert.ToDateTime(x.DateOrTime)).ToList();
+                Snackbar.Add("История удалена", Severity.Success);
+            }
+        }
+    }
+
+    private async Task DeleteAll()
+    {
+        var options = new DialogOptions() { MaxWidth = MaxWidth.ExtraSmall, Position = DialogPosition.TopCenter };
+        var dialog = DialogService.Show<ConfirmDeleteDiaologAdminComponent>($"Подтвердите действие", options);
+        var resultDialog = await dialog.Result;
+
+        if (!resultDialog.Cancelled)
+        {
+            var ids = new DeleteSelectedActionRequest();
+            ids.IdsAction = Model.Select(x => x.Id).ToList();
+            var result = await dm.ActionManager.DeleteSelectedAsync(ids);
+            if (result.Type == NotificationType.Warn) Snackbar.Add("Сервер не отвечает", Severity.Warning);
+            else if (result.Type != NotificationType.Success) Snackbar.Add(result.Text, Severity.Error);
+            else
+            {
+                Model.Clear();
+                Snackbar.Add("Вся история успешно удалена", Severity.Success);
+            }
+        }
+    }
+
+    private async Task ShowContactIniciator(ActionViewModel model)
+    {
+        if (model.IniciatorId == 0) Snackbar.Add("Необходимо указать идентификатор инициатора", Severity.Info);
+        else
+        {
+            var employee = await dm.EmployeesManager.GetModelByIdAsync(model.IniciatorId);
+            if (employee.Type == NotificationType.Warn) Snackbar.Add(employee.Text, Severity.Warning);
+            else if (employee.Type != NotificationType.Success) Snackbar.Add(employee.Text, Severity.Error);
+            else
+            {
+                MobileTelephone = employee.Data.MobileTelephone;
+                WorkTelephone = employee.Data.WorkTelephone;
+                Email = employee.Data.Mail;
+                IniciatorId = model.IniciatorId;
+            }
+        }
+    }
+}

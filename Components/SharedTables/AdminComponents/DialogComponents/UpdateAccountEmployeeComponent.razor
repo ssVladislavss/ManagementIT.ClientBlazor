@@ -1,0 +1,161 @@
+﻿@*@using Microsoft.AspNetCore.Components
+@using System.ComponentModel.DataAnnotations
+@using System.Text.RegularExpressions
+
+
+<MudDialog>
+    <DialogContent>
+        <MudForm Model="@Model" @ref="form">
+            <MudTextField @bind-Value="Model.SurName"
+                          Required="true"
+                          Label="Фамилия"
+                          MaxLength="40"
+                          Counter="40"
+                          For="(() => Model.SurName)"
+                          InputType="InputType.Text"
+                          Validation="Model.Validator.IsValid" />
+
+            <MudTextField @bind-Value="Model.Name"
+                          Required="true"
+                          Label="Имя"
+                          MaxLength="40"
+                          Counter="40"
+                          InputType="InputType.Text"
+                          For="(() => Model.Name)"
+                          Validation="Model.Validator.IsValid" />
+
+            <MudTextField @bind-Value="Model.Patronumic"
+                          For="(() => Model.Patronumic)"
+                          Label="Отчество"
+                          MaxLength="40"
+                          Counter="40"
+                          Required="true"
+                          InputType="InputType.Text"
+                          Validation="Model.Validator.IsValid" />
+
+            <MudTextField @bind-Value="Model.Email"
+                          For="(() => Model.Email)"
+                          Label="Рабочая почта"
+                          MaxLength="40"
+                          Counter="40"
+                          Required="true"
+                          InputType="InputType.Email"
+                          Validation="Model.Validator.IsValid" />
+
+            <MudTextField @bind-Value="Model.UserName"
+                          For="(() => Model.UserName)"
+                          Label="Логин"
+                          MaxLength="40"
+                          Required="true"
+                          Counter="40"
+                          Validation="Model.Validator.IsValid" />
+            <MudTextField @bind-Value="Model.WorkTelephone"
+                          For="(() => Model.WorkTelephone)"
+                          Label="Рабочий телефон"
+                          MaxLength="20"
+                          Counter="20"
+                          InputType="InputType.Telephone"
+                          Validation="Model.Validator.IsValid" />
+            <MudTextField @bind-Value="Model.MobileTelephone"
+                          For="(() => Model.MobileTelephone)"
+                          Label="Мобильный телефон"
+                          MaxLength="20"
+                          Counter="20"
+                          Required="true"
+                          InputType="InputType.Telephone"
+                          Validation="Model.Validator.IsValid" />
+
+            <MudSelect @bind-Value="Model.Departament"
+                       Required="true"
+                       Label="Отделение"
+                       For="(() => Model.Departament)"
+                       Validation="Model.Validator.IsValid">
+
+                @foreach (var departament in Model.SelectedDepartament)
+                {
+                    <MudSelectItem Value="@departament">
+                        @Model.Departament.Name
+                    </MudSelectItem>
+                }
+            </MudSelect>
+            <MudSelect @bind-Value="Model.Position"
+                       Required="true"
+                       Label="Должность"
+                       For="(() => Model.Position)"
+                       Validation="Model.Validator.IsValid">
+                @foreach (var position in Model.SelectedPosition)
+                {
+                    <MudSelectItem Value="@position">
+                        @position.Name
+                    </MudSelectItem>
+                }
+            </MudSelect>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Info" OnClick="Confirm">Подтвердить</MudButton>
+        <MudButton OnClick="Cancel">Отмена</MudButton>
+    </DialogActions>
+</MudDialog>
+
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+
+    [Parameter] public CreateOrEditAccountEmployeeViewModel Model { get; set; }
+
+    MudForm form;
+    MudTextField<string> textValid;
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+
+    private void Confirm()
+    {
+        form.Validate();
+        if(form.IsValid) MudDialog.Close(DialogResult.Ok(Model));
+    }
+
+    private IEnumerable<string> Validator(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            yield return "Поле нельзя оставлять пустым";
+            yield break;
+        }
+        if (Regex.IsMatch(text, ("^.*[^A-zА-яЁё].*$")))
+            yield return "Поле должно содержать только буквы";
+    }
+
+    private IEnumerable<string> ValidatorUserName(string userName)
+    {
+        if (string.IsNullOrWhiteSpace(userName))
+        {
+            yield return "Поле нельзя оставлять пустым";
+            yield break;
+        }
+        if (!Regex.IsMatch(userName, ("^[a-zA-Z0-9](_(?!(\\.|_))|\\.(?!(_|\\.))|[a-zA-Z0-9]){6,18}[a-zA-Z0-9]$")))
+            yield return "Нельзя использвать это логин, пример: S_login_S";
+    }
+
+    private IEnumerable<string> ValidatorWorkTelephone(string workTelephone)
+    {
+        if (string.IsNullOrWhiteSpace(workTelephone))
+            yield break;
+        if (!Regex.IsMatch(workTelephone, (@"^\+?\d{1,3}?[- .]?\(?(?:\d{2,3})\)?[- .]?\d\d\d[- .]?\d\d\d\d$")))
+            yield return "Номер не валиден";
+    }
+
+    private IEnumerable<string> ValidatorTelephone(string telephone)
+    {
+        if (string.IsNullOrWhiteSpace(telephone))
+        {
+            yield return "Поле нельзя оставлять пустым";
+            yield break;
+        }
+        if (!Regex.IsMatch(telephone, (@"^\+?\d{1,3}?[- .]?\(?(?:\d{2,3})\)?[- .]?\d\d\d[- .]?\d\d\d\d$")))
+            yield return "Номер не валиден";
+    }
+}*@

@@ -1,0 +1,49 @@
+﻿<MudDialog>
+    <DialogContent>
+        <MudForm Model="@Model" @ref="@form">
+            <MudTextField @bind-Value="Model.Name"
+                          Label="Название состояние"
+                          For="(() => Model.Name)"
+                          Validation="Model.ValidationRules.ValidateName" />
+
+            <MudCheckBox Disabled="@Model.IsDefault" @bind-Checked="@Model.IsDefault" Color="Color.Primary">Сделать состоянием по умолчанию?</MudCheckBox>
+            
+            <MudSelect @bind-Value="Model.BGColor"
+                       Label="Цвет"
+                       For="(() => Model.BGColor)"
+                       Validation="Model.ValidationRules.ValidateBGColor">
+                @foreach (var item in Enum.GetValues(typeof(ColorsCSS)).Cast<ColorsCSS>())
+                {
+                    <div style="background-color: @item.ToString()">
+                        <MudSelectItem Value="@item.ToString()" />
+                    </div>
+                }
+            </MudSelect>
+
+
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Info" OnClick="Confirm">Подтвердить</MudButton>
+        <MudButton OnClick="Cancel">Отмена</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+
+    [Parameter] public ApplicationStateViewModel Model { get; set; }
+
+    MudForm form;
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+
+    private void Confirm()
+    {
+        form.Validate();
+        if (form.IsValid)MudDialog.Close(DialogResult.Ok(Model));
+    }
+}

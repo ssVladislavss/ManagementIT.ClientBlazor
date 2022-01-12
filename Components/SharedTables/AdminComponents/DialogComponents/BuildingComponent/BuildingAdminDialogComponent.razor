@@ -1,0 +1,53 @@
+﻿
+<MudDialog>
+    <DialogContent>
+        <MudForm Model="@Model" @ref="form">
+            <MudTextField @bind-Value="Model.Name"
+                          Label="Название"
+                          MaxLength="50"
+                          Counter="50"
+                          For="(() => Model.Name)"
+                          Validation="Model.Validator.IsValid" />
+
+            <MudTextField @bind-Value="Model.Address"
+                          RequiredError="Поле нельзя оставить пустым"
+                          Label="Адрес"
+                          MaxLength="50"
+                          Counter="50"
+                          For="(() => Model.Address)"
+                          Validation="Model.Validator.IsValid" />
+
+            <MudTextField @bind-Value="Model.Floor"
+                          For="(() => Model.Floor)"
+                          Label="Колличество этажей"
+                          MaxLength="5"
+                          Counter="5"
+                          Validation="Model.Validator.IsValid" 
+                          InputType="InputType.Number"/>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Info" OnClick="Confirm">Сохранить</MudButton>
+        <MudButton OnClick="Cancel">Отмена</MudButton>
+    </DialogActions>
+</MudDialog>
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+
+    [Parameter] public BuildingViewModel Model { get; set; }
+
+    MudForm form;
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+
+    private void Confirm()
+    {
+        form.Validate();
+
+        if (form.IsValid)
+            MudDialog.Close(DialogResult.Ok(Model));
+    }
+}

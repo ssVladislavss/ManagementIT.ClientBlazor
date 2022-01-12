@@ -1,0 +1,224 @@
+﻿@page "/Admin/Departaments"
+
+@inject DataManager dm
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@*@attribute [Authorize(Roles = "RootAdmin")]*@
+
+@if (result == null)
+{
+    <MudSkeleton />
+    <MudSkeleton Animation="Animation.False" />
+    <MudSkeleton Animation="Animation.Wave" />
+}
+else if (result.Type == NotificationType.Warn)
+{
+    <MudAlert Severity="Severity.Warning">В данный момент невозможно отобразить страницу, сервер не отвечает</MudAlert>
+}
+else if (result.Errors.Any(x => x == TypeOfErrors.NoContent))
+{
+    <MudAlert Severity="Severity.Info">
+        В вашей организации не зарегистрировано ниодного отделения
+        <MudButton Color="Color.Success" Variant="Variant.Filled" OnClick="() => Create()">Добавить</MudButton>
+    </MudAlert>
+}
+else
+{
+    <MudTable Items="@departaments"
+              Dense="@dense" Hover="@hover" Bordered="@bordered" Striped="@striped"
+              Filter="(DepartmentViewModel departament) => FilterFunc(departament, _searchString)">
+        <ToolBarContent>
+            <MudFab OnClick="() => Create()" Color="Color.Success" Icon="@Icons.Material.Filled.Add" Size="Size.Small" IconSize="Size.Small" Class="ma-2" />
+            <MudFab OnClick="UpdateCache" Color="Color.Info" Icon="@Icons.Material.Filled.Update" Label="Обновить" Size="Size.Small" IconSize="Size.Small" Class="ma-2" />
+            <MudSpacer />
+            <MudTextField @bind-Value="_searchString" Placeholder="Поиск" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"></MudTextField>
+        </ToolBarContent>
+        <HeaderContent>
+            <MudTh><MudTableSortLabel SortBy="new Func<DepartmentViewModel, object>(x=>x.Id)">Номер</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<DepartmentViewModel, object>(x=>x.Name)">Название</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<DepartmentViewModel, object>(x=>x.Subdivision?.Name)">Подразделения</MudTableSortLabel></MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Номер">@context.Id</MudTd>
+            <MudTd DataLabel="Название">@context.Name</MudTd>
+            <MudTd DataLabel="Подразделения">@context.Subdivision.Name</MudTd>
+            <MudTd>
+                <MudButtonGroup OverrideStyles="false">
+                    <MudButton Color="Color.Primary" StartIcon="@Icons.Material.Filled.Settings" Variant="Variant.Outlined"
+                               OnClick="() => Update(new CreateOrEditDepartmentViewModel(context))">Редактировать</MudButton>
+                    <MudButton Color="Color.Error" StartIcon="@Icons.Material.Filled.Delete" Variant="Variant.Outlined" OnClick="() => Delete(context)">Удалить</MudButton>
+                </MudButtonGroup>
+            </MudTd>
+        </RowTemplate>
+        <PagerContent>
+            <MudTablePager />
+        </PagerContent>
+    </MudTable>
+}
+
+@code {
+    private bool dense = false;
+    private bool hover = true;
+    private bool striped = false;
+    private bool bordered = false;
+    private string _searchString = "";
+
+    ActionResult<DepartmentViewModel> result;
+    List<DepartmentViewModel> departaments;
+
+    private async Task<DialogResult> ShowDialog(CreateOrEditDepartmentViewModel entity, string message)
+    {
+        var parameters = new DialogParameters { ["Model"] = entity };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, Position = DialogPosition.Center };
+        var dialog = DialogService.Show<DepartamentAdminDialogComponent>(message, parameters, options);
+        return await dialog.Result;
+    }
+
+    private async Task UpdateCache()
+    {
+        var departmentsResult = await dm.DepartamentsManager.GetListViewModelsAsync();
+        result = new ActionResult<DepartmentViewModel>(departmentsResult.Type, departmentsResult.Text, departmentsResult.Title, departmentsResult.Errors);
+        if (result.Type == NotificationType.Warn) { }
+        else if (result.Type != NotificationType.Success) Snackbar.Add(result.Text, Severity.Error);
+        else
+        {
+            departaments = departmentsResult.Data;
+            departaments.Sort();
+            Snackbar.Add("Данные успешно обновлены", Severity.Success);
+        }
+    }
+
+    private async Task GetViewModels(bool updateCache = true)
+    {
+        var actionResult = await dm.DepartamentsManager.GetListViewModelsAsync(updateCache);
+        result = new ActionResult<DepartmentViewModel>(actionResult.Type, actionResult.Text, actionResult.Title, actionResult.Errors);
+
+        if (result.Type == NotificationType.Success)
+        {
+            departaments = actionResult.Data;
+            departaments.Sort();
+        }
+        else departaments = new List<DepartmentViewModel>();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await GetViewModels(false);
+        await base.OnInitializedAsync();
+    }
+
+    private async Task Create(CreateOrEditDepartmentViewModel entity = null)
+    {
+        var model = entity == null ? new CreateOrEditDepartmentViewModel() : entity;
+        var actionResult = await dm.DepartamentsManager.GetForCreateAsync();
+        result = new ActionResult<DepartmentViewModel>(actionResult.Type, actionResult.Text, actionResult.Title, actionResult.Errors);
+
+        if (result.Type == NotificationType.Warn) { }
+        else if (result.Type == NotificationType.Error || result.Type == NotificationType.Info)
+            Snackbar.Add(result.Text, Severity.Error);
+        else
+        {
+            model.SelectedSubdivision = actionResult.Data.SelectedSubdivision;
+            var resultDialog = await ShowDialog(model, "Создание");
+
+            if (!resultDialog.Cancelled)
+            {
+                var addingResult = await dm.DepartamentsManager.CreateAsync((CreateOrEditDepartmentViewModel)resultDialog.Data);
+                result = new ActionResult<DepartmentViewModel>(addingResult.Type, addingResult.Text, addingResult.Title, addingResult.Errors);
+                if (result.Type == NotificationType.Warn) { }
+                else if (result.Type != NotificationType.Success)
+                {
+                    Snackbar.Add(result.Text, Severity.Error);
+                    await Create((CreateOrEditDepartmentViewModel)resultDialog.Data);
+                }
+                else
+                {
+                    await GetViewModels();
+                    Snackbar.Add($"Отделение успешно добавлено", Severity.Success);
+                }
+            }
+        }
+    }
+
+    private async Task Update(CreateOrEditDepartmentViewModel entity)
+    {
+        var actionResult = await dm.DepartamentsManager.GetForUpdateAsync(entity.Id);
+        result = new ActionResult<DepartmentViewModel>(actionResult.Type, actionResult.Text, actionResult.Title, actionResult.Errors);
+
+        if (result.Type == NotificationType.Warn) { }
+        else if (result.Type == NotificationType.Error || result.Type == NotificationType.Info)
+            Snackbar.Add(result.Text, Severity.Error);
+        else
+        {
+            actionResult.Data.Id = entity.Id;
+            actionResult.Data.Subdivision = actionResult.Data.SelectedSubdivision.FirstOrDefault(x => x.Id == entity.Subdivision.Id);
+            var resultDialog = await ShowDialog(actionResult.Data, "Изменение");
+
+            if (!resultDialog.Cancelled)
+            {
+                var addingResult = await dm.DepartamentsManager.UpdateAsync((CreateOrEditDepartmentViewModel)resultDialog.Data);
+                result = new ActionResult<DepartmentViewModel>(addingResult.Type, addingResult.Text, addingResult.Title, addingResult.Errors);
+                if (result.Type == NotificationType.Warn) { }
+                else if (result.Type == NotificationType.Error || result.Type == NotificationType.Info)
+                {
+                    Snackbar.Add(result.Text, Severity.Error);
+                    await Create((CreateOrEditDepartmentViewModel)resultDialog.Data);
+                }
+                else
+                {
+                    await GetViewModels();
+                    Snackbar.Add($"Параметры успешно применены", Severity.Success);
+                }
+            }
+        }
+    }
+
+    private async Task Delete(DepartmentViewModel entity)
+    {
+        var options = new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, Position = DialogPosition.TopCenter };
+        var dialog = DialogService.Show<ConfirmDeleteDiaologAdminComponent>($"Подтвердите действие", options);
+        var resultDialog = await dialog.Result;
+
+        if (!resultDialog.Cancelled)
+        {
+            result = await dm.DepartamentsManager.DeleteAsync(entity.Id);
+            if (result.Type == NotificationType.Warn)
+                Snackbar.Add(result.Text, Severity.Warning);
+            else if (result.Type != NotificationType.Success)
+                Snackbar.Add(result.Text, Severity.Error);
+            else
+            {
+                departaments.Remove(entity);
+                if(departaments.Any()) departaments.Sort();
+                Snackbar.Add("Отделение успешно удалено", Severity.Success);
+            }
+        }
+    }
+
+    private async Task<bool> CheckResultOnError(string message)
+    {
+        if (result.Type == NotificationType.Success)
+        {
+            Snackbar.Add(message, Severity.Success);
+            await GetViewModels();
+            return false;
+        }
+        Snackbar.Add(result.Text, Severity.Error);
+        return true;
+    }
+
+    private bool FilterFunc(DepartmentViewModel departament, string searchString)
+    {
+        if (string.IsNullOrWhiteSpace(searchString))
+            return true;
+        if (departament.Name.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (departament.Subdivision.Name.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        if ($"{departament.Name} {departament.Subdivision.Name}".Contains(searchString))
+            return true;
+        return false;
+    }
+}
+

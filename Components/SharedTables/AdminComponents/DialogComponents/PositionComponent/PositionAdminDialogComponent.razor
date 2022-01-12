@@ -1,0 +1,37 @@
+﻿<MudDialog>
+    <DialogContent>
+        <MudForm Model="@Model" @ref="form">
+            <MudTextField @bind-Value="Model.Name"
+                          Label="Название"
+                          Required="true"
+                          MaxLength="50"
+                          Counter="50"
+                          For="() => Model.Name"
+                          Validation="Model.Validator.IsValid" />
+            </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Info" OnClick="Confirm">Подтвердить</MudButton>
+        <MudButton OnClick="Cancel">Отмена</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+
+    [Parameter] public PositionViewModel Model { get; set; }
+
+    MudForm form;
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+
+    private void Confirm()
+    {
+        form.Validate();
+
+        if(form.IsValid) MudDialog.Close(DialogResult.Ok(Model));
+    }
+}

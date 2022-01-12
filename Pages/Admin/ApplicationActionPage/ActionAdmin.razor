@@ -1,0 +1,313 @@
+﻿@page "/admin/action"
+
+@inject DataManager dm
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+@if (result == null)
+{
+    <MudSkeleton />
+    <MudSkeleton Animation="Animation.False" />
+    <MudSkeleton Animation="Animation.Wave" />
+}
+else if (result.Type == NotificationType.Warn)
+{
+    <MudAlert Severity="Severity.Warning">В данный момент невозможно отобразить страницу, сервер не отвечает</MudAlert>
+}
+else if (result.Errors.Any(x => x == TypeOfErrors.NoContent))
+{
+    <MudAlert Severity="Severity.Info"> Истории заявок нет</MudAlert>
+}
+else
+{
+    <MudTable Items="@action"
+          Dense="@dense" Hover="@hover" Bordered="@bordered" Striped="@striped"
+          Filter="(ActionViewModel entity) => FilterFunc(entity, _searchString)">
+        <ToolBarContent>
+
+            <MudMenu Variant="Variant.Outlined" Color="Color.Primary" Icon="@Icons.Material.Filled.Settings">
+
+                <MudMenuItem OnClick="() => DeleteOrActionType(selectModel)">
+                    Фильтры удаления
+                </MudMenuItem>
+
+                <MudMenuItem OnClick="() => DeleteAll()">
+                    Удалить все
+                </MudMenuItem>
+
+            </MudMenu>
+
+            @if (removeList.Any())
+            {
+                <MudFab Label="@removeList.Count.ToString()" Style="margin-left: 5px;" Size="Size.Small" Color="Color.Secondary" Icon="@Icons.Material.Filled.Delete" OnClick="() => DeleteAll(removeList)"></MudFab>
+            }
+            @if (selectModel.IsActiveSelect)
+            {
+                <MudFab OnClick="ClearRemoveSelect" Color="Color.Tertiary" Icon="@Icons.Material.Filled.Clear" Size="Size.Small" IconSize="Size.Small" Class="ma-2" />
+            }
+
+        <MudFab OnClick="UpdateCache" Color="Color.Info" Icon="@Icons.Material.Filled.Update" Label="Обновить" Size="Size.Small" IconSize="Size.Small" Class="ma-2" />
+        <MudSpacer />
+
+        <MudTextField @bind-Value="_searchString" Placeholder="Поиск" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"></MudTextField>
+    </ToolBarContent>
+    <HeaderContent>
+        <MudTh><MudTableSortLabel SortBy="new Func<ActionViewModel, object>(x=>x.AppId)">Номер заявки</MudTableSortLabel></MudTh>
+        <MudTh><MudTableSortLabel SortBy="new Func<ActionViewModel, object>(x=>x.UserNameIniciator)">Инициатор</MudTableSortLabel></MudTh>
+        <MudTh><MudTableSortLabel SortBy="new Func<ActionViewModel, object>(x=>Convert.ToDateTime(x.DateOrTime))">Дата</MudTableSortLabel></MudTh>
+        <MudTh><MudTableSortLabel SortBy="new Func<ActionViewModel, object>(x=>x.StateName)">Состояние</MudTableSortLabel></MudTh>
+        <MudTh><MudTableSortLabel SortBy="new Func<ActionViewModel, object>(x=>x.Action)">Действие</MudTableSortLabel></MudTh>
+        <MudTh></MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Номер заявки">@context.AppId</MudTd>
+        <MudTd DataLabel="Инициатор">@context.UserNameIniciator</MudTd>
+        <MudTd DataLabel="Дата">@context.DateOrTime</MudTd>
+        <MudTd DataLabel="Состояние">@context.StateName</MudTd>
+        <MudTd DataLabel="Действие">@context.Action</MudTd>
+        <MudTd>
+            <MudMenu Variant="Variant.Outlined" Color="Color.Primary" Icon="@Icons.Material.Filled.Settings">
+
+                <MudMenuItem OnClick="() => DetailsContent(context.ContentApp)">
+                    Описание
+                </MudMenuItem>
+
+                <MudMenuItem OnClick="() => ShowDetailsApplication(context.AppId)">
+                    Перейти к заявке
+                </MudMenuItem>
+
+                <MudMenuItem OnClick="() => Delete(context)">
+                    Удалить
+                </MudMenuItem>
+
+            </MudMenu>
+        </MudTd>
+    </RowTemplate>
+    <PagerContent>
+        <MudTablePager RowsPerPageString="Заявок на странице" InfoFormat="{first_item}-{last_item} из {all_items}" />
+    </PagerContent>
+</MudTable>
+}
+
+@code {
+    private bool dense = false;
+    private bool hover = true;
+    private bool striped = false;
+    private bool bordered = false;
+    private string _searchString = "";
+
+    private List<int> removeList = new List<int>();
+    public DeleteSelectedActionRequest selectModel = new DeleteSelectedActionRequest();
+
+    ActionResult<ActionViewModel> result;
+    List<ActionViewModel> action;
+
+    private async Task<DialogResult> ShowDialog(ApplicationTypeViewModel entity, string message)
+    {
+        var options = new DialogOptions() { MaxWidth = MaxWidth.Small, Position = DialogPosition.Center };
+        var parameters = new DialogParameters { ["Model"] = entity };
+        var dialog = DialogService.Show<AppliactionTypeAdminDialogComponent>(message, parameters, options);
+        return await dialog.Result;
+    }
+
+    private async Task UpdateCache()
+    {
+        var actionResult = await dm.ActionManager.GetListViewModelsAsync();
+        result = new ActionResult<ActionViewModel>(actionResult.Type, actionResult.Text, actionResult.Title, actionResult.Errors);
+        if (result.Type == NotificationType.Warn) { }
+        else if (result.Type != NotificationType.Success) Snackbar.Add(result.Text, Severity.Error);
+        else
+        {
+            action = actionResult.Data.OrderByDescending(x => x.AppId).ToList();
+            Snackbar.Add("Данные успешно обновлены", Severity.Success);
+        }
+    }
+
+    private async Task GetViewModels(bool updateCache = true)
+    {
+        var actionResult = await dm.ActionManager.GetListViewModelsAsync(updateCache);
+        result = new ActionResult<ActionViewModel>(actionResult.Type, actionResult.Text, actionResult.Title, actionResult.Errors);
+        if (result.Type == NotificationType.Success)
+        {
+            action = actionResult.Data.OrderByDescending(x => x.AppId).ToList();
+        }
+        else action = new List<ActionViewModel>();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await GetViewModels(false);
+        await base.OnInitializedAsync();
+    }
+
+    private void DetailsContent(string contentApp)
+    {
+        var options = new DialogOptions() { MaxWidth = MaxWidth.Small, Position = DialogPosition.Center };
+        var parameters = new DialogParameters { ["Message"] = contentApp };
+        var dialog = DialogService.Show<DetailsMessageLogComponent>("Описание заявки", parameters, options);
+    }
+
+    private async Task Delete(ActionViewModel entity)
+    {
+        var options = new DialogOptions() { MaxWidth = MaxWidth.ExtraSmall, Position = DialogPosition.TopCenter };
+        var dialog = DialogService.Show<ConfirmDeleteDiaologAdminComponent>($"Подтвердите действие", options);
+        var resultDialog = await dialog.Result;
+
+        if (!resultDialog.Cancelled)
+        {
+            var request = new DeleteSelectedActionRequest(new List<int> { entity.Id });
+            result = await dm.ActionManager.DeleteSelectedAsync(request);
+            if (result.Type == NotificationType.Warn) { }
+            else if (result.Type != NotificationType.Success) Snackbar.Add(result.Text, Severity.Error);
+            else
+            {
+                action.Remove(entity);
+                if (action.Any()) action = action.OrderByDescending(x => x.AppId).ToList();
+                Snackbar.Add("История успешно удалена", Severity.Success);
+            }
+        }
+    }
+
+    private async Task DeleteAll(List<int> requestList = null)
+    {
+        var options = new DialogOptions() { MaxWidth = MaxWidth.ExtraSmall, Position = DialogPosition.TopCenter };
+        var dialog = DialogService.Show<ConfirmDeleteDiaologAdminComponent>($"Подтвердите действие", options);
+        var resultDialog = await dialog.Result;
+
+        if (!resultDialog.Cancelled)
+        {
+            if (requestList == null)
+            {
+                requestList = new List<int>();
+                requestList = action.Select(x => x.Id).ToList();
+            }
+
+            var request = new DeleteSelectedActionRequest(requestList);
+            result = await dm.ActionManager.DeleteSelectedAsync(request);
+            if (result.Type == NotificationType.Warn) { }
+            else if (result.Type != NotificationType.Success) Snackbar.Add(result.Text, Severity.Error);
+            else
+            {
+                action.RemoveAll(x => requestList.Contains(x.Id));
+                Snackbar.Add("История успешно удалена", Severity.Success);
+                removeList.Clear();
+                if (action.Any()) action = action.OrderByDescending(x => x.AppId).ToList();
+            }
+        }
+    }
+
+    private async Task DeleteOrActionType(DeleteSelectedActionRequest request)
+    {
+        var options = new DialogOptions() { MaxWidth = MaxWidth.ExtraSmall, Position = DialogPosition.TopCenter };
+        var parameters = new DialogParameters { ["Model"] = request };
+        var dialog = DialogService.Show<DeleteSelectActionComponent>("Фильтры", parameters, options);
+        var dialogResult = await dialog.Result;
+
+        if (!dialogResult.Cancelled)
+        {
+            var remove = new List<int>();
+            selectModel = (DeleteSelectedActionRequest)dialogResult.Data;
+
+            if (!selectModel.IsSelectDate(selectModel.DateRange.Start, selectModel.DateRange.End))
+            {
+                if (selectModel.IsAddingArchiveAction) remove.AddRange(action.Where(x => x.Action == "Добавление в архив").Select(x => x.Id).ToList());
+
+                if (selectModel.IsChangeAction) remove.AddRange(action.Where(x => x.Action == "Изменение").Select(x => x.Id).ToList());
+
+                if (selectModel.IsChangePriorityAction) remove.AddRange(action.Where(x => x.Action == "Изменение приоритета").Select(x => x.Id).ToList());
+
+                if (selectModel.IsDeletianAction) remove.AddRange(action.Where(x => x.Action == "Удаление").Select(x => x.Id).ToList());
+
+                if (selectModel.IsStateChangeAction) remove.AddRange(action.Where(x => x.Action == "Изменение состояния").Select(x => x.Id).ToList());
+
+                if (selectModel.IsCreateAction) remove.AddRange(action.Where(x => x.Action == "Создание").Select(x => x.Id).ToList());
+
+                if (selectModel.IsChangeEmployee) remove.AddRange(action.Where(x => x.Action == "Изменение сотрудника").Select(x => x.Id).ToList());
+
+                if (!selectModel.IsAddingArchiveAction && !selectModel.IsChangeAction && !selectModel.IsChangeAction &&
+                !selectModel.IsChangePriorityAction && !selectModel.IsDeletianAction && !selectModel.IsStateChangeAction && !selectModel.IsChangeEmployee && !selectModel.IsCreateAction) { }
+                else if (!remove.Any()) Snackbar.Add("История по выбранным фильтрам не найдена", Severity.Info);
+
+                removeList = remove;
+                if (selectModel.IsAddingArchiveAction || selectModel.IsChangeAction || selectModel.IsChangeAction ||
+                selectModel.IsChangePriorityAction || selectModel.IsDeletianAction || selectModel.IsStateChangeAction || selectModel.IsChangeEmployee || selectModel.IsCreateAction)
+                    selectModel.IsActiveSelect = true;
+            }
+            else
+            {
+                if (selectModel.IsAddingArchiveAction) remove.AddRange(action
+                    .Where(x => x.Action == "Добавление в архив" && Convert.ToDateTime(x.DateOrTime).Date >= selectModel.DateRange.Start && Convert.ToDateTime(x.DateOrTime).Date <= selectModel.DateRange.End)
+                    .Select(x => x.Id).ToList());
+
+                if (selectModel.IsChangeAction) remove.AddRange(action.Where(x => x.Action == "Изменение" && Convert.ToDateTime(x.DateOrTime).Date >= selectModel.DateRange.Start && Convert.ToDateTime(x.DateOrTime).Date <= selectModel.DateRange.End).Select(x => x.Id).ToList());
+
+                if (selectModel.IsChangePriorityAction) remove.AddRange(action.Where(x => x.Action == "Изменение приоритета" && Convert.ToDateTime(x.DateOrTime).Date >= selectModel.DateRange.Start && Convert.ToDateTime(x.DateOrTime).Date <= selectModel.DateRange.End).Select(x => x.Id).ToList());
+
+                if (selectModel.IsDeletianAction) remove.AddRange(action.Where(x => x.Action == "Удаление" && Convert.ToDateTime(x.DateOrTime).Date >= selectModel.DateRange.Start && Convert.ToDateTime(x.DateOrTime).Date <= selectModel.DateRange.End).Select(x => x.Id).ToList());
+
+                if (selectModel.IsStateChangeAction) remove.AddRange(action.Where(x => x.Action == "Изменение состояния" && Convert.ToDateTime(x.DateOrTime).Date >= selectModel.DateRange.Start && Convert.ToDateTime(x.DateOrTime).Date <= selectModel.DateRange.End).Select(x => x.Id).ToList());
+
+                if (selectModel.IsCreateAction) remove.AddRange(action.Where(x => x.Action == "Создание" && Convert.ToDateTime(x.DateOrTime).Date >= selectModel.DateRange.Start && Convert.ToDateTime(x.DateOrTime).Date <= selectModel.DateRange.End).Select(x => x.Id).ToList());
+
+                if (selectModel.IsChangeEmployee) remove.AddRange(action.Where(x => x.Action == "Изменение сотрудника" && Convert.ToDateTime(x.DateOrTime).Date >= selectModel.DateRange.Start && Convert.ToDateTime(x.DateOrTime).Date <= selectModel.DateRange.End).Select(x => x.Id).ToList());
+
+                if (!selectModel.IsAddingArchiveAction && !selectModel.IsChangeAction && !selectModel.IsChangeAction &&
+                !selectModel.IsChangePriorityAction && !selectModel.IsDeletianAction && !selectModel.IsStateChangeAction && !selectModel.IsChangeEmployee && !selectModel.IsCreateAction)
+                    remove.AddRange(action.Where(x => Convert.ToDateTime(x.DateOrTime) >= selectModel.DateRange.Start && Convert.ToDateTime(x.DateOrTime) <= selectModel.DateRange.End).Select(x => x.Id).ToList());
+
+                if (!remove.Any()) Snackbar.Add("История по выбранным фильтрам не найдена", Severity.Info);
+
+
+                if (selectModel.IsAddingArchiveAction || selectModel.IsChangeAction || selectModel.IsChangeAction ||
+                selectModel.IsChangePriorityAction || selectModel.IsDeletianAction || selectModel.IsStateChangeAction ||
+                selectModel.IsSelectDate(selectModel.DateRange.Start, selectModel.DateRange.End) || selectModel.IsChangeEmployee || selectModel.IsCreateAction)
+                    selectModel.IsActiveSelect = true;
+
+                removeList = remove;
+            }
+        }
+    }
+
+    private void ClearRemoveSelect()
+    {
+        removeList.Clear();
+        selectModel = new DeleteSelectedActionRequest();
+    }
+
+    private async void ShowDetailsApplication(int appId)
+    {
+        var application = await dm.ApplicationsTOITDataManager.GetModelByIdAsync(appId);
+        if (application.Type == NotificationType.Warn) Snackbar.Add(application.Text, Severity.Warning);
+        else if (application.Type == NotificationType.Error) Snackbar.Add(application.Text, Severity.Error);
+        else
+        {
+            var options = new DialogOptions() { MaxWidth = MaxWidth.Small, Position = DialogPosition.Center };
+            var parameters = new DialogParameters { ["Model"] = application.Data };
+            var dialog = DialogService.Show<DetailsApplicationComponent>($"Заявка №{appId}", parameters, options);
+        }
+    }
+
+    private bool FilterFunc(ActionViewModel entity, string searchString)
+    {
+        if (string.IsNullOrWhiteSpace(searchString))
+            return true;
+        if (!string.IsNullOrEmpty(entity.UserNameIniciator))
+        {
+            if (entity.UserNameIniciator.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        if (entity.AppId.ToString().Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (entity.Action.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (!string.IsNullOrEmpty(entity.StateName))
+        {
+            if (entity.StateName.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        if (entity.DateOrTime.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        return false;
+    }
+}
+
